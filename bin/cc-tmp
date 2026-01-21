@@ -13,7 +13,7 @@
 
 set -euo pipefail
 
-CLAUDE_UTILS_VERSION="v0.1.4"
+CLAUDE_UTILS_VERSION="v0.2.0"
 
 show_help() {
   sed -n '2,13p' "$0" | sed 's/^# //' | sed 's/^#//'

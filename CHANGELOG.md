@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.0](https://github.com/nsheaps/claude-utils/compare/v0.1.4...v0.2.0) (2026-01-21)
+
+### Features
+
+* add additional CLI utilities from AI repo ([a5cd7c5](https://github.com/nsheaps/claude-utils/commit/a5cd7c53ee5c89d6d453626c35d31beeba543e6e))
+
 ## [0.1.4](https://github.com/nsheaps/claude-utils/compare/v0.1.3...v0.1.4) (2026-01-21)
 
 ### Maintenance

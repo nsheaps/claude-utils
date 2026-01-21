@@ -1,6 +1,6 @@
 {
   "hooks": {
-    "after:bump": "sed -i '' 's/^CLAUDE_UTILS_VERSION=.*/CLAUDE_UTILS_VERSION=\"v${version}\"/' bin/lib/claude.lib.sh"
+    "after:bump": "sed -i.bak 's/^CLAUDE_UTILS_VERSION=.*/CLAUDE_UTILS_VERSION=\"v${version}\"/' bin/lib/claude.lib.sh && rm -f bin/lib/claude.lib.sh.bak"
   },
   "git": {
     "commitMessage": "chore: release v${version} [skip ci]",

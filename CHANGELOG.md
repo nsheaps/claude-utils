@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.4](https://github.com/nsheaps/claude-utils/compare/v0.2.3...v0.2.4) (2026-01-21)
+
+### Bug Fixes
+
+* use readlink -f to resolve symlinks in scripts ([b5a5dbc](https://github.com/nsheaps/claude-utils/commit/b5a5dbcb595d18a5e24053a999b5a1222e3fbe9d))
+
 ## [0.2.3](https://github.com/nsheaps/claude-utils/compare/v0.2.2...v0.2.3) (2026-01-21)
 
 ### Bug Fixes

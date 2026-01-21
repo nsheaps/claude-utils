@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.0](https://github.com/nsheaps/claude-utils/compare/v0.2.5...v0.3.0) (2026-01-21)
+
+### Features
+
+* add run-claude bin script for unified claude invocation ([5234835](https://github.com/nsheaps/claude-utils/commit/5234835fc8d6522dbb3cb2aedd0eb30ce06dea89))
+
 ## [0.2.5](https://github.com/nsheaps/claude-utils/compare/v0.2.4...v0.2.5) (2026-01-21)
 
 ### Refactoring

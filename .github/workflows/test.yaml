@@ -15,8 +15,15 @@ jobs:
       - name: Check bash syntax
         run: |
           for script in bin/*; do
+            # Skip directories (like bin/lib/)
+            [[ -d "$script" ]] && continue
             echo "Checking $script..."
             bash -n "$script"
+          done
+          # Also check library files
+          for lib in bin/lib/*.sh; do
+            echo "Checking $lib..."
+            bash -n "$lib"
           done
           echo "All scripts passed syntax check."
 

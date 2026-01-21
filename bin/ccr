@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# ccr - Resume Claude Code session with visual feedback
-# Usage: ccr [ARGS...]
-#
-# Short alias for 'claude --resume' with a brief status message.
-#
-# Options:
-#   -h, --help    Show this help message
-
 set -euo pipefail
 
 # Source shared Claude CLI helpers
@@ -14,7 +6,15 @@ SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 source "$SCRIPT_DIR/lib/claude.lib.sh"
 
 show_help() {
-  sed -n '2,8p' "$0" | sed 's/^# //' | sed 's/^#//'
+  cat <<'EOF'
+ccr - Resume Claude Code session with visual feedback
+Usage: ccr [ARGS...]
+
+Short alias for 'claude --resume' with a brief status message.
+
+Options:
+  -h, --help    Show this help message
+EOF
   exit 0
 }
 

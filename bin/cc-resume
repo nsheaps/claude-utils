@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# cc-resume - Interactive picker to resume Claude workspace
-# Usage: cc-resume [CLAUDE_ARGS...]
-#
-# Lists existing workspaces in /tmp and lets you pick one to resume,
-# or delegates to 'claude --resume' for session-based resume.
-#
-# Options:
-#   -h, --help    Show this help message
-#
-# Requires: fzf (brew install fzf)
-
 set -euo pipefail
 
 # Source shared Claude CLI helpers
@@ -17,7 +6,18 @@ SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 source "$SCRIPT_DIR/lib/claude.lib.sh"
 
 show_help() {
-  sed -n '2,12p' "$0" | sed 's/^# //' | sed 's/^#//'
+  cat <<'EOF'
+cc-resume - Interactive picker to resume Claude workspace
+Usage: cc-resume [CLAUDE_ARGS...]
+
+Lists existing workspaces in /tmp and lets you pick one to resume,
+or delegates to 'claude --resume' for session-based resume.
+
+Options:
+  -h, --help    Show this help message
+
+Requires: fzf (brew install fzf)
+EOF
   exit 0
 }
 

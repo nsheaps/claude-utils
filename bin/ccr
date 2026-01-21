@@ -9,6 +9,10 @@
 
 set -euo pipefail
 
+# Source shared Claude CLI helpers
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/claude.lib.sh"
+
 show_help() {
   sed -n '2,8p' "$0" | sed 's/^# //' | sed 's/^#//'
   exit 0
@@ -22,4 +26,4 @@ done
 
 echo "Resuming Claude Code Session..."
 sleep 0.4
-exec claude --resume "$@"
+claudeish --resume "$@"

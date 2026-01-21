@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.3](https://github.com/nsheaps/claude-utils/compare/v0.1.2...v0.1.3) (2026-01-21)
+
+### Bug Fixes
+
+* copy github-app-auth action exactly from git-wt ([8b3bcb3](https://github.com/nsheaps/claude-utils/commit/8b3bcb352db3f1811bdd3af65f761d3fd20a2e40))
+
 ## [0.1.2](https://github.com/nsheaps/claude-utils/compare/v0.1.1...v0.1.2) (2026-01-21)
 
 ### Refactoring

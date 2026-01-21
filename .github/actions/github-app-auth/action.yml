@@ -52,6 +52,12 @@ runs:
       run: |
         USER_NAME="${{ steps.get-user-id.outputs.user-name }}"
         USER_ID="${{ steps.get-user-id.outputs.user-id }}"
+
+        # Setup gh auth and export tokens for subsequent steps
+        gh auth setup-git
+        echo "GH_TOKEN=${GH_TOKEN}" >> $GITHUB_ENV
+        echo "GITHUB_TOKEN=${GH_TOKEN}" >> $GITHUB_ENV
+
         git config --global user.name "$USER_NAME"
         git config --global user.email "${USER_ID}+${USER_NAME}@users.noreply.github.com"
 

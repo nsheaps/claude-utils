@@ -24,6 +24,4 @@ for arg in "$@"; do
   esac
 done
 
-echo "Resuming Claude Code Session..."
-sleep 0.4
 claudeish --resume "$@"

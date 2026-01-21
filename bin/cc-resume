@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-CLAUDE_UTILS_VERSION="${CLAUDE_UTILS_VERSION:-dev}"
+CLAUDE_UTILS_VERSION="v0.1.0"
 
 show_help() {
   sed -n '2,12p' "$0" | sed 's/^# //' | sed 's/^#//'

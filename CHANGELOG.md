@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.1](https://github.com/nsheaps/claude-utils/compare/v0.1.0...v0.1.1) (2026-01-21)
+
+### Bug Fixes
+
+* export GH_TOKEN to GITHUB_ENV for subsequent steps ([10c7fd6](https://github.com/nsheaps/claude-utils/commit/10c7fd6326475eba81bc9c68aa4efe312e3c8ba8))
+
 ## 0.1.0 (2026-01-21)
 
 ### Features

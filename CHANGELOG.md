@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.0](https://github.com/nsheaps/claude-utils/compare/v0.3.0...v0.4.0) (2026-01-21)
+
+### Features
+
+* add claude-utils meta script with --help and --version ([4cb011a](https://github.com/nsheaps/claude-utils/commit/4cb011a588f8ceb79460305abab923e7c6d3934b))
+
 ## [0.3.0](https://github.com/nsheaps/claude-utils/compare/v0.2.5...v0.3.0) (2026-01-21)
 
 ### Features

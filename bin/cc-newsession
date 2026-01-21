@@ -17,8 +17,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/claude.lib.sh"
 
-CLAUDE_UTILS_VERSION="v0.2.2"
-
 show_help() {
   sed -n '2,13p' "$0" | sed 's/^# //' | sed 's/^#//'
   exit 0

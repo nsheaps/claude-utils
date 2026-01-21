@@ -13,7 +13,9 @@
 
 set -euo pipefail
 
-CLAUDE_UTILS_VERSION="v0.2.2"
+# Source shared Claude CLI helpers
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/claude.lib.sh"
 
 show_help() {
   sed -n '2,13p' "$0" | sed 's/^# //' | sed 's/^#//'
@@ -56,4 +58,4 @@ echo "This workspace will persist after Claude exits."
 echo ""
 
 cd "$WS_DIR"
-exec claude --add-dir="$PWD" --append-system-prompt="$SYSTEM_PROMPT" "$@"
+claudeish --add-dir="$PWD" --append-system-prompt="$SYSTEM_PROMPT" "$@"

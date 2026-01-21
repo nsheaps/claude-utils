@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# claude-update - Update Claude Code via Homebrew
+# Usage: claude-update
+#
+# Updates the claude-code package from Homebrew.
+#
+# Options:
+#   -h, --help    Show this help message
+
+set -euo pipefail
+
+show_help() {
+  sed -n '2,8p' "$0" | sed 's/^# //' | sed 's/^#//'
+  exit 0
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help) show_help ;;
+  esac
+done
+
+exec brew upgrade claude-code

@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+# claude-clean-orphaned - Kill orphaned Claude processes
+# Usage: claude-clean-orphaned [--force]
+#
+# Finds and kills Claude processes with PPID=1 (orphaned).
+#
+# Options:
+#   --force    Actually kill the processes (default: dry-run)
+#
+# When run interactively without --force, prompts for confirmation.
+
+set -euo pipefail
+
+show_help() {
+  sed -n '2,11p' "$0" | sed 's/^# //' | sed 's/^#//'
+  exit 0
+}
+
+FORCE=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --force)   FORCE=true; shift ;;
+    -h|--help) show_help ;;
+    *)         echo "Unknown option: $1" >&2; show_help ;;
+  esac
+done
+
+# Find orphan PIDs - claude processes with PPID=1, excluding turbo
+ORPHAN_PIDS=()
+
+while IFS= read -r pid; do
+  [[ -z "$pid" ]] && continue
+
+  # Check if this is a happy-managed session by examining the command line
+  CMD=$(ps -o command= -p "$pid" 2>/dev/null || true)
+  if [[ "$CMD" == *".happy/"* ]] || [[ "$CMD" == *"mcp__happy__"* ]]; then
+    continue
+  fi
+
+  # Check ancestry for happy processes
+  DOMINATED_BY_HAPPY=false
+  P=$pid
+  while (( P > 1 )); do
+    PINFO=$(ps -o ppid=,comm= -p "$P" 2>/dev/null || true)
+    [[ -z "$PINFO" ]] && break
+    PP=${PINFO%% *}
+    PC=${PINFO#* }
+    if [[ "$PC" == *happy* ]]; then
+      DOMINATED_BY_HAPPY=true
+      break
+    fi
+    P=$PP
+  done
+
+  [[ "$DOMINATED_BY_HAPPY" == true ]] && continue
+  ORPHAN_PIDS+=("$pid")
+done < <(pgrep -f claude 2>/dev/null | while read -r p; do
+  ps -o pid=,ppid= -p "$p" 2>/dev/null | awk '$2==1 {print $1}'
+done | grep -v turbo || true)
+
+if [[ ${#ORPHAN_PIDS[@]} -eq 0 ]]; then
+  echo "No orphaned claude processes found."
+  exit 0
+fi
+
+echo "Found ${#ORPHAN_PIDS[@]} orphaned claude process(es):"
+for pid in "${ORPHAN_PIDS[@]}"; do
+  ps -o pid,etime,command -p "$pid" 2>/dev/null | tail -1
+done
+
+# Determine if we should kill
+SHOULD_KILL=false
+if [[ "$FORCE" == true ]]; then
+  SHOULD_KILL=true
+elif [[ -t 0 && -t 1 ]]; then
+  echo ""
+  printf "Kill these processes? [y/N] "
+  read -r response
+  [[ "$response" =~ ^[Yy]$ ]] && SHOULD_KILL=true
+fi
+
+if [[ "$SHOULD_KILL" == true ]]; then
+  echo ""
+  echo "Sending SIGINT to ${#ORPHAN_PIDS[@]} orphaned process(es)..."
+  kill -INT "${ORPHAN_PIDS[@]}" 2>/dev/null || true
+
+  sleep 1
+
+  # Check which are still alive
+  STILL_ALIVE=()
+  for pid in "${ORPHAN_PIDS[@]}"; do
+    kill -0 "$pid" 2>/dev/null && STILL_ALIVE+=("$pid")
+  done
+
+  if [[ ${#STILL_ALIVE[@]} -gt 0 ]]; then
+    echo "Sending SIGKILL to ${#STILL_ALIVE[@]} stubborn process(es)..."
+    kill -9 "${STILL_ALIVE[@]}" 2>/dev/null || true
+  fi
+
+  echo "Done."
+else
+  echo ""
+  echo "(dry-run) Would kill: ${ORPHAN_PIDS[*]}"
+  echo "Use --force to kill, or run interactively to be prompted."
+fi

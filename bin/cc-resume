@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+# cc-resume - Interactive picker to resume Claude workspace
+# Usage: cc-resume [CLAUDE_ARGS...]
+#
+# Lists existing workspaces in /tmp and lets you pick one to resume,
+# or delegates to 'claude --resume' for session-based resume.
+#
+# Options:
+#   -h, --help    Show this help message
+#
+# Requires: fzf (brew install fzf)
+
+set -euo pipefail
+
+CLAUDE_UTILS_VERSION="${CLAUDE_UTILS_VERSION:-dev}"
+
+show_help() {
+  sed -n '2,12p' "$0" | sed 's/^# //' | sed 's/^#//'
+  exit 0
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help) show_help ;;
+  esac
+done
+
+# Check for fzf
+if ! command -v fzf &>/dev/null; then
+  echo "Error: fzf is required but not installed" >&2
+  echo "Install with: brew install fzf" >&2
+  exit 1
+fi
+
+# Build options list
+OPTIONS=()
+
+# Find workspace directories in /tmp
+# Use nullglob to handle case where no matches exist
+shopt -s nullglob
+for dir in /tmp/claude-workspace-*; do
+  if [[ -d "$dir" ]]; then
+    OPTIONS+=("$(basename "$dir")")
+  fi
+done
+shopt -u nullglob
+
+RESUME_OPTION="[Claude --resume] Resume from Claude's session picker"
+CANCEL_OPTION="[Cancel]"
+
+if [[ ${#OPTIONS[@]} -eq 0 ]]; then
+  echo "No workspace directories found in /tmp/claude-workspace-*"
+  echo ""
+  echo "Options:"
+  echo "  1) Resume from Claude's built-in session picker"
+  echo "  2) Cancel"
+  echo ""
+  printf "Choice [1-2]: "
+  read -r choice
+  case "$choice" in
+    1) exec claude --resume "$@" ;;
+    *) echo "Cancelled."; exit 0 ;;
+  esac
+fi
+
+# Add special options
+OPTIONS+=("$RESUME_OPTION")
+OPTIONS+=("$CANCEL_OPTION")
+
+# Use fzf for selection
+SELECTED=$(printf '%s\n' "${OPTIONS[@]}" | fzf --prompt="Select workspace: " --height=40% --reverse)
+
+if [[ -z "$SELECTED" ]] || [[ "$SELECTED" == "$CANCEL_OPTION" ]]; then
+  echo "Cancelled."
+  exit 0
+elif [[ "$SELECTED" == "$RESUME_OPTION" ]]; then
+  exec claude --resume "$@"
+else
+  WS_DIR="/tmp/$SELECTED"
+  echo "Resuming in workspace: $WS_DIR"
+  cd "$WS_DIR"
+  exec claude --add-dir="$PWD" "$@"
+fi

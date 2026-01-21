@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# cc-newsession - Create new Claude workspace
+# Usage: cc-newsession [--temp] [CLAUDE_ARGS...]
+#
+# Creates a new workspace and launches Claude Code there.
+#
+# Options:
+#   --temp        Delete workspace on exit (default: persist)
+#   -h, --help    Show this help message
+#
+# By default, workspaces are created at /tmp/claude-workspace-<timestamp>
+# and persist after Claude exits.
+
+set -euo pipefail
+
+CLAUDE_UTILS_VERSION="${CLAUDE_UTILS_VERSION:-dev}"
+
+show_help() {
+  sed -n '2,13p' "$0" | sed 's/^# //' | sed 's/^#//'
+  exit 0
+}
+
+IS_TEMP=false
+CLAUDE_ARGS=()
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --temp)    IS_TEMP=true; shift ;;
+    -h|--help) show_help ;;
+    *)         CLAUDE_ARGS+=("$1"); shift ;;
+  esac
+done
+
+NOW="$(date +%s)"
+WS_DIR="/tmp/claude-workspace-$NOW"
+
+cleanup() {
+  if [[ "$IS_TEMP" == true ]] && [[ -d "$WS_DIR" ]]; then
+    rm -rf "$WS_DIR"
+    echo ""
+    echo "Deleted temporary workspace: $WS_DIR"
+  else
+    echo ""
+    echo "Workspace preserved at: $WS_DIR"
+  fi
+}
+trap cleanup EXIT
+
+mkdir -p "$WS_DIR"
+
+TEMP_NOTE=""
+if [[ "$IS_TEMP" == true ]]; then
+  TEMP_NOTE="This workspace is temporary and will be deleted when you exit Claude."
+else
+  TEMP_NOTE="This workspace persists after you exit - it will NOT be automatically deleted."
+fi
+
+SYSTEM_PROMPT="$(cat << EOPROMPT
+The user has launched you in an ephemeral workspace located at $WS_DIR.
+$TEMP_NOTE
+
+This workspace is empty by default. Clarify with the user why it is needed if it is unclear from their prompt.
+
+Assume the user is not an expert at prompt engineering. When they make a request, first apply a critical thinking
+lens by starting with:
+  To fulfill this request, I should start by improving the prompt
+  Let me rewrite the user's prompt to be one that I would use with an AI agent to perform this task.
+  This prompt should be detailed enough that the AI Agent can complete the task in one-shot.
+  If the user's request doesn't contain enough detail to assure a one-shot execution, ask for clarification from the user.
+
+Once you have improved the prompt, proceed to complete the user's request as best as you can.
+EOPROMPT
+)"
+
+echo "Creating workspace at: $WS_DIR"
+if [[ "$IS_TEMP" == true ]]; then
+  echo "This workspace will be DELETED when Claude exits."
+else
+  echo "This workspace will persist after Claude exits."
+fi
+echo ""
+
+cd "$WS_DIR"
+claude --add-dir="$PWD" --append-system-prompt="$SYSTEM_PROMPT" "${CLAUDE_ARGS[@]}"

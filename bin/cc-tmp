@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# cc-tmp - Create temporary Claude workspace in /tmp (persisted)
+# Usage: cc-tmp [CLAUDE_ARGS...]
+#
+# Creates a new workspace in /tmp/claude-workspace-<timestamp> and launches
+# Claude Code there. Unlike the original cc-tmp, this workspace is NOT
+# deleted on exit - it persists for later inspection or resume.
+#
+# Options:
+#   -h, --help    Show this help message
+#
+# The workspace path is printed on startup and remains after Claude exits.
+
+set -euo pipefail
+
+CLAUDE_UTILS_VERSION="${CLAUDE_UTILS_VERSION:-dev}"
+
+show_help() {
+  sed -n '2,13p' "$0" | sed 's/^# //' | sed 's/^#//'
+  exit 0
+}
+
+# Parse for help only, pass everything else to claude
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help) show_help ;;
+  esac
+done
+
+NOW="$(date +%s)"
+WS_DIR="/tmp/claude-workspace-$NOW"
+
+mkdir -p "$WS_DIR"
+
+SYSTEM_PROMPT="$(cat << EOPROMPT
+The user has launched you in an ephemeral workspace located at $WS_DIR.
+
+This workspace persists after you exit - it will NOT be automatically deleted.
+The user can find it later at: $WS_DIR
+
+This workspace is empty by default. Clarify with the user why it is needed if it is unclear from their prompt.
+
+Assume the user is not an expert at prompt engineering. When they make a request, first apply a critical thinking
+lens by starting with:
+  To fulfill this request, I should start by improving the prompt
+  Let me rewrite the user's prompt to be one that I would use with an AI agent to perform this task.
+  This prompt should be detailed enough that the AI Agent can complete the task in one-shot.
+  If the user's request doesn't contain enough detail to assure a one-shot execution, ask for clarification from the user.
+
+Once you have improved the prompt, proceed to complete the user's request as best as you can.
+EOPROMPT
+)"
+
+echo "Creating workspace at: $WS_DIR"
+echo "This workspace will persist after Claude exits."
+echo ""
+
+cd "$WS_DIR"
+exec claude --add-dir="$PWD" --append-system-prompt="$SYSTEM_PROMPT" "$@"

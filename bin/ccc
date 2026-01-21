@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# ccc - Continue Claude Code session with visual feedback
+# Usage: ccc [ARGS...]
+#
+# Short alias for 'claude --continue' with a brief status message.
+#
+# Options:
+#   -h, --help    Show this help message
+
+set -euo pipefail
+
+show_help() {
+  sed -n '2,8p' "$0" | sed 's/^# //' | sed 's/^#//'
+  exit 0
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help) show_help ;;
+  esac
+done
+
+echo "Continuing Claude Code Session..."
+sleep 0.4
+exec claude --continue "$@"

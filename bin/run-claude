@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# run-claude - Launch Claude Code with bypass permissions through happy
+# Usage: run-claude [ARGS...]
+#
+# Wrapper that routes claude invocations through happy with bypass
+# permissions enabled by default. Use this as your main entry point.
+#
+# Options:
+#   -h, --help    Show this help message
+#
+# Examples:
+#   run-claude              # Start new session
+#   run-claude --continue   # Continue last session
+#   run-claude --resume     # Resume last session
+
+set -euo pipefail
+
+# Source shared Claude CLI helpers
+SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+source "$SCRIPT_DIR/lib/claude.lib.sh"
+
+show_help() {
+  sed -n '2,15p' "$0" | sed 's/^# //' | sed 's/^#//'
+  exit 0
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help) show_help ;;
+  esac
+done
+
+claudeish "$@"

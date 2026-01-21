@@ -126,6 +126,16 @@ test_claude_diagnostics_help() {
   fi
 }
 
+test_run_claude_help() {
+  local output
+  output=$("$BIN_DIR/run-claude" --help 2>&1) || true
+  if echo "$output" | grep -q "Launch Claude Code with bypass permissions"; then
+    pass "run-claude --help shows usage"
+  else
+    fail "run-claude --help shows usage" "Contains 'Launch Claude Code with bypass permissions'" "$output"
+  fi
+}
+
 test_claude_clean_orphaned_dryrun() {
   local output
   # Should run dry-run without killing anything
@@ -154,6 +164,7 @@ test_cc_tmp_help
 test_cc_newsession_help
 test_cc_resume_help
 test_claude_diagnostics_help
+test_run_claude_help
 test_claude_clean_orphaned_dryrun
 
 echo ""

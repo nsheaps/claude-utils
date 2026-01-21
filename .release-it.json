@@ -1,6 +1,6 @@
 {
   "hooks": {
-    "after:bump": "sed -i '' 's/^CLAUDE_UTILS_VERSION=.*/CLAUDE_UTILS_VERSION=\"v${version}\"/' bin/cc-tmp bin/cc-newsession bin/cc-resume"
+    "after:bump": "sed -i 's/^CLAUDE_UTILS_VERSION=.*/CLAUDE_UTILS_VERSION=\"v${version}\"/' bin/cc-tmp bin/cc-newsession bin/cc-resume"
   },
   "git": {
     "commitMessage": "chore: release v${version} [skip ci]",

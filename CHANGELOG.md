@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.5](https://github.com/nsheaps/claude-utils/compare/v0.2.4...v0.2.5) (2026-01-21)
+
+### Refactoring
+
+* remove visual feedback from ccc and ccr scripts ([d771d90](https://github.com/nsheaps/claude-utils/commit/d771d909358349c9e363986be267a3226435d111))
+
 ## [0.2.4](https://github.com/nsheaps/claude-utils/compare/v0.2.3...v0.2.4) (2026-01-21)
 
 ### Bug Fixes

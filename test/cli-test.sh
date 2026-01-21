@@ -136,6 +136,26 @@ test_run_claude_help() {
   fi
 }
 
+test_claude_utils_help() {
+  local output
+  output=$("$BIN_DIR/claude-utils" --help 2>&1) || true
+  if echo "$output" | grep -q "CLI utilities for Claude Code"; then
+    pass "claude-utils --help shows usage"
+  else
+    fail "claude-utils --help shows usage" "Contains 'CLI utilities for Claude Code'" "$output"
+  fi
+}
+
+test_claude_utils_version() {
+  local output
+  output=$("$BIN_DIR/claude-utils" --version 2>&1) || true
+  if echo "$output" | grep -qE "^claude-utils v[0-9]+\.[0-9]+\.[0-9]+"; then
+    pass "claude-utils --version shows version"
+  else
+    fail "claude-utils --version shows version" "Matches 'claude-utils vX.Y.Z'" "$output"
+  fi
+}
+
 test_claude_clean_orphaned_dryrun() {
   local output
   # Should run dry-run without killing anything
@@ -165,6 +185,8 @@ test_cc_newsession_help
 test_cc_resume_help
 test_claude_diagnostics_help
 test_run_claude_help
+test_claude_utils_help
+test_claude_utils_version
 test_claude_clean_orphaned_dryrun
 
 echo ""

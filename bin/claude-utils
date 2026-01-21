@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# claude-utils - CLI utilities for Claude Code workflow management
+# Usage: claude-utils [--help | --version]
+#
+# A collection of helper scripts for working with Claude Code.
+
+set -euo pipefail
+
+# Source shared library for version
+SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+source "$SCRIPT_DIR/lib/claude.lib.sh"
+
+show_version() {
+  echo "claude-utils $CLAUDE_UTILS_VERSION"
+  exit 0
+}
+
+show_help() {
+  cat <<'EOF'
+claude-utils - CLI utilities for Claude Code workflow management
+
+USAGE:
+  claude-utils [--help | --version]
+
+AVAILABLE UTILITIES:
+  run-claude            Launch Claude with bypass permissions via happy
+  ccc                   Continue last session (short for --continue)
+  ccr                   Resume last session (short for --resume)
+  cccontinue            Continue last session (verbose alias)
+  ccresume              Resume last session (verbose alias)
+  cc-newsession         Create a new Claude workspace
+  cc-tmp                Create a temporary Claude workspace
+  cc-resume             Interactive picker to resume a workspace
+  claude-update         Update Claude Code via Homebrew
+  claude-clean-orphaned Kill orphaned Claude processes
+  claude-diagnostics    Run Claude Code diagnostics
+  claude-simple-cli     Minimal Claude CLI for scripting
+
+OPTIONS:
+  -h, --help      Show this help message
+  -v, --version   Show version information
+
+REPOSITORY:
+  https://github.com/nsheaps/claude-utils
+
+Contributions welcome! Open an issue or submit a PR.
+EOF
+  exit 0
+}
+
+case "${1:-}" in
+  -v|--version) show_version ;;
+  -h|--help|"") show_help ;;
+  *)
+    echo "Unknown option: $1" >&2
+    echo "Run 'claude-utils --help' for usage." >&2
+    exit 1
+    ;;
+esac

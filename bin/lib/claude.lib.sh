@@ -11,7 +11,7 @@
 # Based on: dotfiles/_home/interactive.d/claude.sh
 
 # Package version - single source of truth
-CLAUDE_UTILS_VERSION="v0.2.2"
+CLAUDE_UTILS_VERSION="v0.2.3"
 
 # Commands that only exist in claude (not happy) - always redirect to claude
 CLAUDE_ONLY_COMMANDS=("auth" "plugin")

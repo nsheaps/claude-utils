@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.3](https://github.com/nsheaps/claude-utils/compare/v0.2.2...v0.2.3) (2026-01-21)
+
+### Bug Fixes
+
+* use cross-platform sed syntax in release hook ([05ef9bd](https://github.com/nsheaps/claude-utils/commit/05ef9bd6f858778d292c111d67c5b3cb0d7f3de5))
+
 ## [0.2.2](https://github.com/nsheaps/claude-utils/compare/v0.2.1...v0.2.2) (2026-01-21)
 
 ## [0.2.1](https://github.com/nsheaps/claude-utils/compare/v0.2.0...v0.2.1) (2026-01-21)

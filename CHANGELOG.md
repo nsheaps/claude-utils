@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.2](https://github.com/nsheaps/claude-utils/compare/v0.1.1...v0.1.2) (2026-01-21)
+
+### Refactoring
+
+* use gomplate for formula templating instead of sed ([1236853](https://github.com/nsheaps/claude-utils/commit/1236853c428571d7d18fed382b6ed64bcd7d33ab))
+
 ## [0.1.1](https://github.com/nsheaps/claude-utils/compare/v0.1.0...v0.1.1) (2026-01-21)
 
 ### Bug Fixes

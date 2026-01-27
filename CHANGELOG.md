@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.0](https://github.com/nsheaps/claude-utils/compare/v0.4.0...v0.5.0) (2026-01-27)
+
+### Features
+
+* add gum dependency and enhance run-claude help output with claude's help info ([9381e50](https://github.com/nsheaps/claude-utils/commit/9381e502a0872c79c315206664aae180bc795dd7))
+
 ## [0.4.0](https://github.com/nsheaps/claude-utils/compare/v0.3.0...v0.4.0) (2026-01-21)
 
 ### Features

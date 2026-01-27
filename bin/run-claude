@@ -21,6 +21,9 @@ source "$SCRIPT_DIR/lib/claude.lib.sh"
 
 show_help() {
   sed -n '2,15p' "$0" | sed 's/^# //' | sed 's/^#//'
+  echo "==============================="
+  echo -e "The following is the --help result from claude itself\n\n"
+  claudeish --help
   exit 0
 }
 
@@ -29,5 +32,18 @@ for arg in "$@"; do
     -h|--help) show_help ;;
   esac
 done
+
+CHECK_FOR_UPDATES_ON_FORMULAE=("claude-code" "claude-utils")
+AVAILABLE_UPDATES="$(HOMEBREW_NO_AUTO_UPDATE=1 brew outdated --verbose "${CHECK_FOR_UPDATES_ON_FORMULAE[@]}" || true )"
+if [[ -n "$AVAILABLE_UPDATES" ]]; then
+  cat << EOF
+Updates are available for the following formulae:"
+$(echo "$AVAILABLE_UPDATES" | xargs -I{} echo " - local {} remote")
+
+EOF
+  if gum confirm "Do you want to upgrade them now?"; then
+    brew upgrade "${CHECK_FOR_UPDATES_ON_FORMULAE[@]}" || echo "looks like upgrade failed, continuing anyway..."
+  fi
+fi
 
 claudeish "$@"

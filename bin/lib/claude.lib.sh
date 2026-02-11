@@ -91,3 +91,13 @@ claude_bin() {
 happy_bin() {
   _claudeish "happy" "$@"
 }
+
+simple_claudeish() {
+  # same as claudeish but always runs claude and always with the default flags
+  local FLAGS=("--allow-dangerously-skip-permissions" "$@")
+  echo "Launching claude with flags:" >&2
+  for flag in "${FLAGS[@]}"; do
+    echo "  $flag" >&2
+  done
+  command "claude" "${FLAGS[@]}"
+}

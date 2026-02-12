@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.1](https://github.com/nsheaps/claude-utils/compare/v0.6.0...v0.6.1) (2026-02-12)
+
+### Refactoring
+
+* route all helper scripts through run-claude ([45ec1b4](https://github.com/nsheaps/claude-utils/commit/45ec1b4bb62117a1bf170de45545ad1cbab2f71f))
+
 ## [0.6.0](https://github.com/nsheaps/claude-utils/compare/v0.5.1...v0.6.0) (2026-02-12)
 
 ### Features

@@ -10,6 +10,9 @@
 #
 # Based on: dotfiles/_home/interactive.d/claude.sh
 
+# Source stdlib for printing utilities (error, warn, hint, etc.)
+source "$(dirname "${BASH_SOURCE[0]}")/stdlib.sh"
+
 # Package version - single source of truth
 CLAUDE_UTILS_VERSION="v0.6.2"
 
@@ -160,6 +163,18 @@ claude_check_settings_backup() {
     local latest_backup
     latest_backup="$(_claude_find_latest_backup "$rel_path")"
 
+    # Fail if the file is empty
+    if [[ ! -s "$current_file" ]]; then
+      error "$current_file is empty!"
+      if [[ -n "$latest_backup" ]]; then
+        error "Restore from backup with:"
+        hint "cp \"$latest_backup\" \"$current_file\""
+      else
+        error "No backup available to restore from."
+      fi
+      return 1
+    fi
+
     # No backup exists yet - create the first one
     if [[ -z "$latest_backup" ]]; then
       _claude_backup_file "$rel_path"
@@ -177,7 +192,7 @@ claude_check_settings_backup() {
     fi
 
     # Files differ - warn and back up
-    echo -e "\033[31mWARNING: $rel_path has changed since last backup ($latest_backup)\033[0m" >&2
+    warn "WARNING: $rel_path has changed since last backup ($latest_backup)"
     _claude_backup_file "$rel_path"
     sleep 2
   done

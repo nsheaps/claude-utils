@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.0](https://github.com/nsheaps/claude-utils/compare/v0.6.2...v0.7.0) (2026-02-12)
+
+### Features
+
+* add stdlib.sh and use it for formatted output in claude.lib.sh ([d474603](https://github.com/nsheaps/claude-utils/commit/d4746031a39e5e2761ee91a451931e2bb0a893c9))
+
 ## [0.6.2](https://github.com/nsheaps/claude-utils/compare/v0.6.1...v0.6.2) (2026-02-12)
 
 ### Refactoring

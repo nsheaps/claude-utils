@@ -14,7 +14,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/stdlib.sh"
 
 # Package version - single source of truth
-CLAUDE_UTILS_VERSION="v0.6.2"
+CLAUDE_UTILS_VERSION="v0.7.0"
 
 # Commands that only exist in claude (not happy) - always redirect to claude
 CLAUDE_ONLY_COMMANDS=("auth" "plugin")

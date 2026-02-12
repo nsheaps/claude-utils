@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.2](https://github.com/nsheaps/claude-utils/compare/v0.6.1...v0.6.2) (2026-02-12)
+
+### Refactoring
+
+* use exec for run-claude delegation in helper scripts ([3a1103a](https://github.com/nsheaps/claude-utils/commit/3a1103a739c5049be06353b25d3bdda362372dcb))
+
 ## [0.6.1](https://github.com/nsheaps/claude-utils/compare/v0.6.0...v0.6.1) (2026-02-12)
 
 ### Refactoring

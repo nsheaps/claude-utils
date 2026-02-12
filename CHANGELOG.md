@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.0](https://github.com/nsheaps/claude-utils/compare/v0.5.1...v0.6.0) (2026-02-12)
+
+### Features
+
+* add settings.json backup check on claude entry and exit ([42a2f8f](https://github.com/nsheaps/claude-utils/commit/42a2f8fc24a3b2b978bd562a4e022c5694ab8dfd))
+
 ## [0.5.1](https://github.com/nsheaps/claude-utils/compare/v0.5.0...v0.5.1) (2026-02-11)
 
 ## [0.5.0](https://github.com/nsheaps/claude-utils/compare/v0.4.0...v0.5.0) (2026-01-27)

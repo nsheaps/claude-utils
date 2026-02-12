@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Source shared Claude CLI helpers
 SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-source "$SCRIPT_DIR/lib/claude.lib.sh"
 
 show_help() {
   cat <<'EOF'
@@ -83,4 +81,4 @@ fi
 echo ""
 
 cd "$WS_DIR"
-claudeish --add-dir="$PWD" --append-system-prompt="$SYSTEM_PROMPT" "${CLAUDE_ARGS[@]}"
+"$SCRIPT_DIR/run-claude" --add-dir="$PWD" --append-system-prompt="$SYSTEM_PROMPT" "${CLAUDE_ARGS[@]}"

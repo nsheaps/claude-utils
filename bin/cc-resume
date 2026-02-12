@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Source shared Claude CLI helpers
 SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-source "$SCRIPT_DIR/lib/claude.lib.sh"
 
 show_help() {
   cat <<'EOF'
@@ -60,7 +58,7 @@ if [[ ${#OPTIONS[@]} -eq 0 ]]; then
   printf "Choice [1-2]: "
   read -r choice
   case "$choice" in
-    1) claudeish --resume "$@"; exit ;;
+    1) "$SCRIPT_DIR/run-claude" --resume "$@"; exit ;;
     *) echo "Cancelled."; exit 0 ;;
   esac
 fi
@@ -76,10 +74,10 @@ if [[ -z "$SELECTED" ]] || [[ "$SELECTED" == "$CANCEL_OPTION" ]]; then
   echo "Cancelled."
   exit 0
 elif [[ "$SELECTED" == "$RESUME_OPTION" ]]; then
-  claudeish --resume "$@"
+  "$SCRIPT_DIR/run-claude" --resume "$@"
 else
   WS_DIR="/tmp/$SELECTED"
   echo "Resuming in workspace: $WS_DIR"
   cd "$WS_DIR"
-  claudeish --add-dir="$PWD" "$@"
+  "$SCRIPT_DIR/run-claude" --add-dir="$PWD" "$@"
 fi

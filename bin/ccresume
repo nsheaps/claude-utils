@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Source shared Claude CLI helpers
 SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-source "$SCRIPT_DIR/lib/claude.lib.sh"
 
 show_help() {
   cat <<'EOF'
@@ -24,4 +22,4 @@ for arg in "$@"; do
   esac
 done
 
-claudeish --resume "$@"
+"$SCRIPT_DIR/run-claude" --resume "$@"

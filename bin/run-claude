@@ -46,4 +46,8 @@ EOF
   fi
 fi
 
+claude_check_settings_backup
+
+trap claude_check_settings_backup EXIT
+
 simple_claudeish "$@"

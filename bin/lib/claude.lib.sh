@@ -101,3 +101,84 @@ simple_claudeish() {
   done
   command "claude" "${FLAGS[@]}"
 }
+
+# --- Settings backup utilities ---
+
+CLAUDE_HOME="${CLAUDE_HOME:-$HOME/.claude}"
+CLAUDE_BACKUP_DIR="${CLAUDE_HOME}/backups"
+
+# Files to monitor for backup (relative to CLAUDE_HOME)
+CLAUDE_BACKUP_FILES=("settings.json")
+
+_claude_find_latest_backup() {
+  # Find the most recent backup of a file
+  # Usage: _claude_find_latest_backup "settings.json"
+  # Returns: path to latest backup, or empty string
+  local rel_path="$1"
+  local latest=""
+
+  if [[ ! -d "$CLAUDE_BACKUP_DIR" ]]; then
+    return
+  fi
+
+  # Find all backups of this file sorted by date dir (newest first)
+  while IFS= read -r backup_file; do
+    latest="$backup_file"
+    break
+  done < <(find "$CLAUDE_BACKUP_DIR" -path "*/$rel_path" -type f 2>/dev/null | sort -r)
+
+  echo "$latest"
+}
+
+_claude_backup_file() {
+  # Back up a single file to ~/.claude/backups/YYYY-MM-DD/<rel_path>
+  # Usage: _claude_backup_file "settings.json"
+  local rel_path="$1"
+  local source_file="$CLAUDE_HOME/$rel_path"
+  local today
+  today="$(date +%Y-%m-%d)"
+  local dest_dir="$CLAUDE_BACKUP_DIR/$today"
+  local dest_file="$dest_dir/$rel_path"
+
+  mkdir -p "$(dirname "$dest_file")"
+  cp "$source_file" "$dest_file"
+  echo "Backed up $rel_path to $dest_file" >&2
+}
+
+claude_check_settings_backup() {
+  # Check monitored files for changes/shrinkage after a claude session.
+  # Intended to be called from a trap.
+  local rel_path
+  for rel_path in "${CLAUDE_BACKUP_FILES[@]}"; do
+    local current_file="$CLAUDE_HOME/$rel_path"
+
+    # Skip if the file doesn't exist
+    if [[ ! -f "$current_file" ]]; then
+      continue
+    fi
+
+    local latest_backup
+    latest_backup="$(_claude_find_latest_backup "$rel_path")"
+
+    # No backup exists yet - create the first one
+    if [[ -z "$latest_backup" ]]; then
+      _claude_backup_file "$rel_path"
+      continue
+    fi
+
+    # Compare hashes
+    local current_hash backup_hash
+    current_hash="$(shasum -a 256 "$current_file" | cut -d' ' -f1)"
+    backup_hash="$(shasum -a 256 "$latest_backup" | cut -d' ' -f1)"
+
+    if [[ "$current_hash" == "$backup_hash" ]]; then
+      # Identical, nothing to do
+      continue
+    fi
+
+    # Files differ - warn and back up
+    echo -e "\033[31mWARNING: $rel_path has changed since last backup ($latest_backup)\033[0m" >&2
+    _claude_backup_file "$rel_path"
+    sleep 2
+  done
+}

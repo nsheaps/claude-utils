@@ -56,4 +56,4 @@ echo "This workspace will persist after Claude exits."
 echo ""
 
 cd "$WS_DIR"
-"$SCRIPT_DIR/run-claude" --add-dir="$PWD" --append-system-prompt="$SYSTEM_PROMPT" "$@"
+exec "$SCRIPT_DIR/run-claude" --add-dir="$PWD" --append-system-prompt="$SYSTEM_PROMPT" "$@"

@@ -81,4 +81,4 @@ fi
 echo ""
 
 cd "$WS_DIR"
-"$SCRIPT_DIR/run-claude" --add-dir="$PWD" --append-system-prompt="$SYSTEM_PROMPT" "${CLAUDE_ARGS[@]}"
+exec "$SCRIPT_DIR/run-claude" --add-dir="$PWD" --append-system-prompt="$SYSTEM_PROMPT" "${CLAUDE_ARGS[@]}"

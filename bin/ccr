@@ -22,4 +22,4 @@ for arg in "$@"; do
   esac
 done
 
-"$SCRIPT_DIR/run-claude" --resume "$@"
+exec "$SCRIPT_DIR/run-claude" --resume "$@"

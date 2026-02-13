@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.2](https://github.com/nsheaps/claude-utils/compare/v0.8.1...v0.8.2) (2026-02-13)
+
+### Bug Fixes
+
+* correct Ctrl+O description in agent-teams skill ([f3f9009](https://github.com/nsheaps/claude-utils/commit/f3f9009a5398f30f7c829c26a8b5f258ac9b0a26))
+
 ## [0.8.1](https://github.com/nsheaps/claude-utils/compare/v0.8.0...v0.8.1) (2026-02-13)
 
 ### Documentation

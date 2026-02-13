@@ -8,18 +8,16 @@ BIN_DIR="${SCRIPT_DIR}/../bin"
 TESTS_PASSED=0
 TESTS_FAILED=0
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-NC='\033[0m' # No Color
+# Source stdlib for color constants and logging
+source "$BIN_DIR/lib/stdlib.sh"
 
 pass() {
-  echo -e "${GREEN}PASS${NC}: $1"
+  echo -e "${ANSI_GREEN}PASS${ANSI_RESET}: $1"
   TESTS_PASSED=$((TESTS_PASSED + 1))
 }
 
 fail() {
-  echo -e "${RED}FAIL${NC}: $1"
+  echo -e "${ANSI_RED}FAIL${ANSI_RESET}: $1"
   echo "  Expected: $2"
   echo "  Got: $3"
   TESTS_FAILED=$((TESTS_FAILED + 1))
@@ -156,6 +154,37 @@ test_claude_utils_version() {
   fi
 }
 
+test_claude_team_help() {
+  local output
+  output=$("$BIN_DIR/claude-team" --help 2>&1) || true
+  if echo "$output" | grep -q "Launch Claude Code with agent teams enabled"; then
+    pass "claude-team --help shows usage"
+  else
+    fail "claude-team --help shows usage" "Contains 'Launch Claude Code with agent teams enabled'" "$output"
+  fi
+}
+
+test_ct_help() {
+  local output
+  output=$("$BIN_DIR/ct" --help 2>&1) || true
+  if echo "$output" | grep -q "Shorthand for claude-team"; then
+    pass "ct --help shows usage"
+  else
+    fail "ct --help shows usage" "Contains 'Shorthand for claude-team'" "$output"
+  fi
+}
+
+test_claude_team_invalid_mode() {
+  local output
+  local exit_code=0
+  output=$("$BIN_DIR/claude-team" --mode invalid 2>&1) || exit_code=$?
+  if [[ $exit_code -ne 0 ]] && echo "$output" | grep -q "Invalid mode"; then
+    pass "claude-team rejects invalid mode"
+  else
+    fail "claude-team rejects invalid mode" "Non-zero exit and 'Invalid mode' message" "$output (exit: $exit_code)"
+  fi
+}
+
 test_claude_clean_orphaned_dryrun() {
   local output
   # Should run dry-run without killing anything
@@ -187,11 +216,14 @@ test_claude_diagnostics_help
 test_run_claude_help
 test_claude_utils_help
 test_claude_utils_version
+test_claude_team_help
+test_ct_help
+test_claude_team_invalid_mode
 test_claude_clean_orphaned_dryrun
 
 echo ""
 echo "========================================"
-echo -e "Results: ${GREEN}${TESTS_PASSED} passed${NC}, ${RED}${TESTS_FAILED} failed${NC}"
+echo -e "Results: ${ANSI_GREEN}${TESTS_PASSED} passed${ANSI_RESET}, ${ANSI_RED}${TESTS_FAILED} failed${ANSI_RESET}"
 echo "========================================"
 
 if [[ $TESTS_FAILED -gt 0 ]]; then

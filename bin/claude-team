@@ -37,7 +37,7 @@ OPTIONS:
   -m, --mode MODE     Teammate display mode (skips interactive prompt)
                         auto        - Auto-detect best backend (default)
                         in-process  - Hidden sessions, Shift+Up/Down to switch
-                        tmux        - Visible split panes (requires tmux/iTerm2)
+                        tmux        - Visible split panes (auto-launches tmux -CC)
   --no-interactive    Skip interactive prompts, use default mode (auto)
   -h, --help          Show this help message
 
@@ -126,18 +126,14 @@ if [[ -z "$TEAMMATE_MODE" ]]; then
 fi
 
 # Check tmux requirements if tmux mode selected
+LAUNCH_TMUX_CC=false
 if [[ "$TEAMMATE_MODE" == "tmux" ]]; then
-  if [[ -z "${TMUX:-}" ]] && ! command -v tmux &>/dev/null; then
-    warn "tmux mode selected but tmux is not available."
-    warn "Install with: brew install tmux"
-    warn "Then start a tmux session: tmux new-session"
-    fatal "Cannot use tmux mode without tmux."
+  if ! command -v tmux &>/dev/null; then
+    check_and_install tmux
   fi
   if [[ -z "${TMUX:-}" ]]; then
-    warn "tmux is installed but you're not in a tmux session."
-    hint "Start one with: tmux new-session"
-    hint "Or use a different mode: claude-team --mode in-process"
-    fatal "Cannot use tmux mode outside a tmux session."
+    LAUNCH_TMUX_CC=true
+    info "Not in a tmux session. Will auto-launch with tmux -CC (iTerm2 control mode)."
   fi
 fi
 
@@ -157,4 +153,12 @@ echo ""
 claude_check_settings_backup
 trap claude_check_settings_backup EXIT
 
-simple_claudeish "${TEAM_FLAGS[@]}" "${CLAUDE_ARGS[@]}"
+if [[ "$LAUNCH_TMUX_CC" == true ]]; then
+  # Auto-launch tmux -CC (control mode) so iTerm2 renders native windows/tabs.
+  # CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 is already exported and inherited.
+  # The tmux session ends automatically when claude exits.
+  info "Starting tmux -CC session..."
+  exec tmux -CC new-session -- claude --allow-dangerously-skip-permissions "${TEAM_FLAGS[@]}" "${CLAUDE_ARGS[@]}"
+else
+  simple_claudeish "${TEAM_FLAGS[@]}" "${CLAUDE_ARGS[@]}"
+fi

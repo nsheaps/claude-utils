@@ -46,6 +46,26 @@ Configure in `settings.json` or per-session:
 claude --teammate-mode tmux
 ```
 
+### tmux -CC and iTerm2 Integration
+
+The `"tmux"` setting uses tmux as the backend in **all cases** -- including when iTerm2 is the terminal. The difference is presentation:
+
+| Scenario | What Happens |
+|:---------|:-------------|
+| Inside tmux session | Standard tmux split panes (green status bar, prefix keys) |
+| iTerm2 (not in tmux) | `tmux -CC` control mode -- teammates appear as native iTerm2 tabs/panes |
+| Other terminal | Falls back to in-process mode |
+
+**tmux -CC (control mode)** is a text-based protocol where tmux sends structured messages instead of rendering a terminal UI. iTerm2 intercepts these and renders native macOS windows/tabs. Benefits over raw tmux:
+- Native trackpad scrolling, Cmd+C/V, Cmd+F search
+- Click-to-interact with teammate panes
+- No tmux keybinding learning curve
+- Session persistence (tmux keeps running if iTerm2 quits; reconnect with `tmux -CC attach`)
+
+The `claude-team` helper auto-launches `tmux -CC` when tmux mode is selected outside a tmux session, so users don't need to manually start tmux first.
+
+Sources: [tmux Control Mode Wiki](https://github.com/tmux/tmux/wiki/Control-Mode), [iTerm2 tmux Integration](https://iterm2.com/documentation-tmux-integration.html), [Agent Teams Docs](https://code.claude.com/docs/en/agent-teams)
+
 ## Creating a Team
 
 Describe the task and team structure in natural language. Claude will propose the team composition and wait for approval before proceeding.
@@ -133,7 +153,7 @@ For working examples and hook configuration patterns, consult `references/hooks-
 - One team per session; clean up before starting a new one
 - No nested teams (teammates cannot spawn their own teams)
 - Lead is fixed for the session's lifetime
-- Split panes require tmux or iTerm2
+- Split panes require tmux or iTerm2 (`claude-team` auto-launches `tmux -CC` if needed)
 - Teammates start with lead's permission mode
 
 ## Additional Resources

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.1](https://github.com/nsheaps/claude-utils/compare/v0.7.0...v0.7.1) (2026-02-13)
+
+### Refactoring
+
+* use stdlib.sh in cli-test.sh and add agent teams tests ([07ac4f0](https://github.com/nsheaps/claude-utils/commit/07ac4f0a3079439d57842c8e76ed67456b6f3035))
+
 ## [0.7.0](https://github.com/nsheaps/claude-utils/compare/v0.6.2...v0.7.0) (2026-02-12)
 
 ### Features

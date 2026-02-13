@@ -76,6 +76,7 @@ Describe the task and team structure in natural language. Claude will propose th
 |:--------|:---------|
 | Shift+Up/Down | Cycle through teammates (in-process) |
 | Ctrl+T | Toggle task list |
+| Ctrl+O | Toggle verbose view (shows full inter-agent messages instead of summaries) |
 | Shift+Tab | Toggle delegate mode (lead coordination only) |
 | Escape | Interrupt teammate's turn |
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.0](https://github.com/nsheaps/claude-utils/compare/v0.7.1...v0.8.0) (2026-02-13)
+
+### Features
+
+* auto-launch tmux -CC in claude-team and document iTerm2 integration ([2058117](https://github.com/nsheaps/claude-utils/commit/2058117af9a2811d2ca7fd4f4316fee70fed9eee))
+
 ## [0.7.1](https://github.com/nsheaps/claude-utils/compare/v0.7.0...v0.7.1) (2026-02-13)
 
 ### Refactoring

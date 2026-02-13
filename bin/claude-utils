@@ -35,6 +35,7 @@ AVAILABLE UTILITIES:
   claude-clean-orphaned Kill orphaned Claude processes
   claude-diagnostics    Run Claude Code diagnostics
   claude-simple-cli     Minimal Claude CLI for scripting
+  claude-team (ct)      Launch Claude with agent teams enabled
 
 OPTIONS:
   -h, --help      Show this help message

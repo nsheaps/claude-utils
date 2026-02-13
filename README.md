@@ -28,6 +28,13 @@ brew install claude-utils
 | `cc-newsession` | Create new workspace (use `--temp` to delete on exit) |
 | `cc-resume` | Interactive picker to resume existing workspaces |
 
+### Agent Teams
+
+| Command | Description |
+|---------|-------------|
+| `claude-team` | Launch Claude with agent teams enabled (interactive mode picker) |
+| `ct` | Shorthand alias for `claude-team` |
+
 ### Utilities
 
 | Command | Description |
@@ -58,6 +65,12 @@ claude-clean-orphaned --force     # Actually kill orphaned processes
 claude-diagnostics                # Create diagnostic archive
 claude-diagnostics -v             # Print diagnostics to console
 claude-diagnostics --no-archive   # Print only, no archive
+
+# Agent teams
+claude-team                       # Interactive mode picker
+claude-team --mode tmux           # Tmux split panes
+claude-team --mode in-process     # In-process mode
+ct --mode auto                    # Shorthand with auto mode
 ```
 
 ## Workspace Behavior

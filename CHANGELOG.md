@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.1](https://github.com/nsheaps/claude-utils/compare/v0.8.0...v0.8.1) (2026-02-13)
+
+### Documentation
+
+* add Ctrl+O verbose view shortcut to agent-teams skill ([b411df2](https://github.com/nsheaps/claude-utils/commit/b411df20a35186db2e3224015f8ab50b0e60af91))
+
 ## [0.8.0](https://github.com/nsheaps/claude-utils/compare/v0.7.1...v0.8.0) (2026-02-13)
 
 ### Features

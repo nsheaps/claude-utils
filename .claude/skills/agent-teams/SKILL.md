@@ -46,6 +46,22 @@ Configure in `settings.json` or per-session:
 claude --teammate-mode tmux
 ```
 
+### Gotcha: Use settings.json, Not Just the CLI Flag
+
+**Always set `teammateMode` in `settings.json`** rather than relying solely on `--teammate-mode`:
+
+```json
+{ "teammateMode": "tmux" }
+```
+
+The `--teammate-mode` CLI flag is a hidden flag (not shown in `--help`) that sets a per-session "snapshot" of the mode. However, internally Claude Code's BackendRegistry may reset its cached backend detection between teammate spawns via `resetBackendDetection`. When this happens without `teammateMode` in settings.json, re-detection can trigger the **iTerm2 Split Pane Setup dialog** on every spawn — prompting you to "Install it2 now", "Use tmux instead", or "Cancel" repeatedly.
+
+Setting `teammateMode: "tmux"` in settings.json causes the BackendRegistry to skip iTerm2 detection entirely ("User prefers tmux over iTerm2"), preventing the prompt. The CLI flag alone does not reliably signal this preference to the backend selection logic.
+
+**Note**: Spawned teammates do NOT receive `--teammate-mode` in their spawn command — they are non-interactive sessions that use in-process mode internally by design. The `teammateMode` setting only affects the **lead session's** backend selection for creating panes.
+
+Sources: Binary analysis of Claude Code v2.1.39, [GitHub #24301](https://github.com/anthropics/claude-code/issues/24301)
+
 ### tmux -CC and iTerm2 Integration
 
 The `"tmux"` setting uses tmux as the backend in **all cases** -- including when iTerm2 is the terminal. The difference is presentation:

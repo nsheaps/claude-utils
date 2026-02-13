@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.3](https://github.com/nsheaps/claude-utils/compare/v0.8.2...v0.8.3) (2026-02-13)
+
+### Documentation
+
+* document teammateMode settings.json gotcha in agent-teams skill ([9febea9](https://github.com/nsheaps/claude-utils/commit/9febea9631622107c6d9e21a0af5dd491fc0b248))
+
 ## [0.8.2](https://github.com/nsheaps/claude-utils/compare/v0.8.1...v0.8.2) (2026-02-13)
 
 ### Bug Fixes

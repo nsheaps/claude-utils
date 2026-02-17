@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.4](https://github.com/nsheaps/claude-utils/compare/v0.8.3...v0.8.4) (2026-02-17)
+
+### Documentation
+
+* add multi-repo phase plan v1 draft to tmp ([34acd3e](https://github.com/nsheaps/claude-utils/commit/34acd3e1ccbbfddb12619dbdd07c4811f385ffed))
+
 ## [0.8.3](https://github.com/nsheaps/claude-utils/compare/v0.8.2...v0.8.3) (2026-02-13)
 
 ### Documentation

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.7](https://github.com/nsheaps/claude-utils/compare/v0.8.6...v0.8.7) (2026-02-17)
+
+### Documentation
+
+* log Failure [#10](https://github.com/nsheaps/claude-utils/issues/10) — task subject formatting drift after compaction ([f32f98d](https://github.com/nsheaps/claude-utils/commit/f32f98d59db7344b60a6d6ed7b8c8f4170ce122d)), closes [#9](https://github.com/nsheaps/claude-utils/issues/9)
+
 ## [0.8.6](https://github.com/nsheaps/claude-utils/compare/v0.8.5...v0.8.6) (2026-02-17)
 
 ### Documentation

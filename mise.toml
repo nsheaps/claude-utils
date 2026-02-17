@@ -9,9 +9,11 @@ run = "bash test/cli-test.sh"
 [tasks.lint]
 description = "Check bash syntax for all scripts"
 run = """
-for script in bin/*; do
-  echo "Checking $script..."
-  bash -n "$script"
+find bin -type f -name '*.sh' -o -type f ! -name '*.*' | while read -r script; do
+  if head -1 "$script" | grep -q 'bash'; then
+    echo "Checking $script..."
+    bash -n "$script"
+  fi
 done
 echo "All scripts passed syntax check."
 """

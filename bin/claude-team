@@ -137,16 +137,48 @@ if [[ "$TEAMMATE_MODE" == "tmux" ]]; then
   fi
 fi
 
-# Build the command
+# Build orchestrator system prompt
+ORCHESTRATOR_PROMPT="You are an orchestrator of an agent team using claude code. You do not perform any tasks, only create/launch teammates and coordinate between them."
+
+# Build hooks settings JSON
+HOOKS_SETTINGS_JSON='{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"[agent-teams] Session started in agent team orchestrator mode\" >&2"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"[agent-teams] Session stopping. Any previously created team will be destroyed and must be recreated on next launch.\" >&2"
+          }
+        ]
+      }
+    ]
+  }
+}'
+
+# Build the command flags
 TEAM_FLAGS=(
   "--teammate-mode" "$TEAMMATE_MODE"
+  "--permission-mode" "delegate"
+  "--continue"
+  "--append-system-prompt" "$ORCHESTRATOR_PROMPT"
+  "--settings" "$HOOKS_SETTINGS_JSON"
 )
 
 export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
 
-success "Launching Claude with agent teams enabled (mode: $TEAMMATE_MODE)"
+success "Launching Claude agent team orchestrator (mode: $TEAMMATE_MODE)"
 echo ""
-hint "Tip: Ask Claude to 'create a team' to get started with agent teams."
 hint "Controls: Shift+Up/Down (switch), Ctrl+T (tasks), Shift+Tab (delegate)"
 echo ""
 
@@ -158,7 +190,7 @@ if [[ "$LAUNCH_TMUX_CC" == true ]]; then
   # CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1 is already exported and inherited.
   # The tmux session ends automatically when claude exits.
   info "Starting tmux -CC session..."
-  exec tmux -CC new-session -- claude --allow-dangerously-skip-permissions "${TEAM_FLAGS[@]}" "${CLAUDE_ARGS[@]}"
+  exec tmux -CC new-session -- claude --dangerously-skip-permissions "${TEAM_FLAGS[@]}" "${CLAUDE_ARGS[@]}"
 else
-  simple_claudeish "${TEAM_FLAGS[@]}" "${CLAUDE_ARGS[@]}"
+  command claude --dangerously-skip-permissions "${TEAM_FLAGS[@]}" "${CLAUDE_ARGS[@]}"
 fi

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.6](https://github.com/nsheaps/claude-utils/compare/v0.8.5...v0.8.6) (2026-02-17)
+
+### Documentation
+
+* add team working artifacts, research, and spec drafts ([73c9510](https://github.com/nsheaps/claude-utils/commit/73c95106c2a3d3dab4a50390cbe90744c33d1ad9))
+
 ## [0.8.5](https://github.com/nsheaps/claude-utils/compare/v0.8.4...v0.8.5) (2026-02-17)
 
 ### Documentation

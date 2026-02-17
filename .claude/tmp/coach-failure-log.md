@@ -307,3 +307,32 @@ The underlying pattern is consistent: **Tweety prioritizes speed of delivery ove
 - (d) Read research outputs before starting work that depends on research findings
 - (e) Compaction summaries are lossy — they may contain outdated or incorrect task guidance. Treat them as context recovery, not as task specs
 
+---
+
+## Failure #10: Task Subject Formatting Drift After Compaction
+
+**Timestamp**: 2026-02-17 UTC
+**Reporter**: User (via team-lead)
+**Category**: Process / Conventions
+**Severity**: Medium
+
+**What happened**: Tasks created during this session dropped the `#ID:` prefix convention from their subjects. Earlier in the session, tasks were consistently created as `"#108: Create incremental design behavior"`. After compaction, tasks were created as `"Create incremental design behavior"` — no ID prefix. The user noticed the inconsistency.
+
+**Impact**: Task subjects became less scannable in TaskList output. Without the `#ID:` prefix, it's harder to quickly cross-reference tasks in messages, reviews, and the failure log. Low individual impact, but it degrades team coordination quality over time.
+
+**Root cause**: Formatting convention was in working memory, not codified anywhere. After compaction, the convention was lost because it wasn't documented as a behavior or rule. This is the same root cause pattern as Failure #9 — compaction strips implicit conventions that aren't persisted in docs.
+
+**Who was affected**: team-lead (primary — was the one creating tasks), but applies to all teammates who create tasks.
+
+**Pattern**: This is the SECOND failure caused by compaction stripping undocumented conventions:
+- Failure #9: Task requirements lost after compaction (Tweety)
+- Failure #10: Formatting convention lost after compaction (team-lead)
+
+Both share the same root cause: important information existed only in working memory, not in persistent docs or behaviors. Compaction is a reliable convention-killer when conventions aren't codified.
+
+**Lessons**:
+- (a) All team conventions must be codified in behaviors, not just communicated verbally or relied on in working memory
+- (b) Compaction is a "convention reset" event — anything not persisted in a file will be lost
+- (c) This is a systemic risk: how many other implicit conventions are currently undocumented?
+- (d) The fix (creating a behavior) is itself an example of the incremental-design behavior working — a small problem leads to a specific, targeted fix
+

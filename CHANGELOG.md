@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.5](https://github.com/nsheaps/claude-utils/compare/v0.8.4...v0.8.5) (2026-02-17)
+
+### Documentation
+
+* add QA reports for team deliverables ([4367446](https://github.com/nsheaps/claude-utils/commit/4367446753bf70269ebaa002c1c16b43f95cd176))
+
 ## [0.8.4](https://github.com/nsheaps/claude-utils/compare/v0.8.3...v0.8.4) (2026-02-17)
 
 ### Documentation

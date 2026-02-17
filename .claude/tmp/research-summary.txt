@@ -1,0 +1,61 @@
+RESEARCH COMPLETE: tmux Orchestration & Linear Integrations for Agent Teams
+Generated: 2026-02-16
+
+FILE LOCATION:
+/Users/nathan.heaps/src/nsheaps/claude-utils/.claude/tmp/research-tmux-linear.md (563 lines, 24KB)
+
+RESEARCH SCOPE:
+1. tmux Orchestration Layers for Claude Code (beyond basic usage)
+2. Linear Hooks/Integrations for Agent Team Coordination
+
+KEY FINDINGS:
+
+TOPIC 1: tmux Orchestration
+- 10 active community projects mapping tmux → AI agent orchestration
+- Three architectural patterns: Named Sessions, Web Dashboards, IDE Control Planes
+- Session persistence solves SSH/terminal crash issues
+- Named Tmux Manager (NTM) is production Go implementation
+- Agent Viewer provides web kanban interface
+- Warp/Oz emerging as cloud orchestration platform
+
+TOPIC 2: Linear + Agents
+- Linear MCP server: 32+ tools, OAuth+API key auth, centrally hosted
+- Linear Agent API: Create agents as workspace users, delegate issues
+- Webhooks: Real-time event triggers (Issues, Comments, Projects, etc)
+- Cursor integration: Live and functional, auto-creates PRs
+- Gartner prediction: 40% of enterprise apps will have task-specific agents by 2026
+
+INTEGRATION OPPORTUNITIES:
+- Pattern 1: Issue-driven spawning (webhook → orchestrator → teammates)
+- Pattern 2: Self-coordination via Linear comments
+- Pattern 3: User interception with Linear context refresh
+- Key insight: tmux = execution layer, Linear = coordination layer
+
+TOOLS CATALOGED:
+tmux Side:
+  - Named Tmux Manager (Go)
+  - Agent of Empires (Rust)
+  - Agent Viewer (Node.js)
+  - KanVibe (Rust)
+  - tmux-agents (TypeScript)
+  - 5 more variants
+
+Linear Side:
+  - Official MCP Server
+  - Official Agent API
+  - Official Webhooks
+  - 2 Community MCP implementations
+  - Cursor integration
+
+CONFIDENCE LEVELS:
+High: tmux is de facto standard, Linear MCP production-ready
+Medium: Long-term stability of community tools, MCP as universal standard
+Low: Custom Linear agent development examples, Warp/Oz patterns
+
+NEXT STEPS FOR claude-utils:
+1. Consider Linear MCP integration in orchestrator
+2. Webhook handlers for issue-driven spawning
+3. Status update flow back to Linear
+4. Document integration patterns in skills
+
+SOURCES: 30+ articles, 15+ GitHub repos, official Linear/Claude documentation

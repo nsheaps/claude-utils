@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.9](https://github.com/nsheaps/claude-utils/compare/v0.8.8...v0.8.9) (2026-02-18)
+
+### Refactoring
+
+* migrate agent-teams skill to shared plugin in nsheaps/.ai ([85f6683](https://github.com/nsheaps/claude-utils/commit/85f6683dee9316fb9e58ef895d079704dad150d9))
+
 ## [0.8.8](https://github.com/nsheaps/claude-utils/compare/v0.8.7...v0.8.8) (2026-02-18)
 
 ### Bug Fixes

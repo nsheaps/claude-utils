@@ -95,7 +95,17 @@ jobs:
         run: |
           gomplate -f Formula/claude-utils.rb.gotmpl -o homebrew-devsetup/Formula/claude-utils.rb
 
-      - name: Create PR to update formula with auto-merge
+      - name: Close stale formula PRs
+        run: |
+          cd homebrew-devsetup
+          # Close any open PRs from previous formula updates — they're superseded
+          gh pr list --state open --search "chore: update claude-utils to" --json number,title --jq '.[].number' | while read -r pr_num; do
+            echo "Closing superseded PR #${pr_num}"
+            gh pr close "$pr_num" --comment "Superseded by v${{ steps.release.outputs.version }} update."
+          done
+
+      - name: Create PR to update formula
+        id: formula-pr
         env:
           RELEASE_URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.release.outputs.tag }}
           JOB_URL: ${{ env.GITHUB_JOB_URL }}
@@ -104,22 +114,42 @@ jobs:
         run: |
           cd homebrew-devsetup
           BRANCH="bump-claude-utils-${VERSION}"
+
+          # Delete remote branch if it exists from a previous failed run
+          git push origin --delete "$BRANCH" 2>/dev/null || true
+
           git checkout -b "$BRANCH"
           git add Formula/claude-utils.rb
           git commit -m "chore: update claude-utils to ${VERSION}"
           git push -u origin "$BRANCH"
 
-          # Create PR body file
-          cat > /tmp/pr-body.md << 'BODY_EOF'
+          cat > /tmp/pr-body.md << BODY_EOF
           Automated formula update from claude-utils release
+
+          **Release:** ${RELEASE_URL}
+          **Workflow:** ${JOB_URL}
           BODY_EOF
-          echo "" >> /tmp/pr-body.md
-          echo "**Release:** ${RELEASE_URL}" >> /tmp/pr-body.md
-          echo "**Workflow:** ${JOB_URL}" >> /tmp/pr-body.md
 
           PR_URL=$(gh pr create \
             --title "chore: update claude-utils to ${VERSION}" \
             --body-file /tmp/pr-body.md \
             --base main)
-          # Enable auto-merge with squash
-          gh pr merge "$PR_URL" --auto --squash
+          echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Enable auto-merge with retry
+        env:
+          PR_URL: ${{ steps.formula-pr.outputs.pr_url }}
+        run: |
+          # Retry auto-merge — CI checks on the target repo need time to start,
+          # and the GraphQL API rejects enablePullRequestAutoMerge while the PR
+          # is in "unstable" (checks pending) status.
+          for attempt in 1 2 3 4 5; do
+            if gh pr merge "$PR_URL" --auto --squash; then
+              echo "Auto-merge enabled successfully on attempt ${attempt}"
+              exit 0
+            fi
+            wait=$((attempt * 10))
+            echo "Auto-merge not ready (attempt ${attempt}/5), waiting ${wait}s..."
+            sleep "$wait"
+          done
+          echo "::warning::Could not enable auto-merge after 5 attempts. PR was created successfully at ${PR_URL} — merge manually or re-run."

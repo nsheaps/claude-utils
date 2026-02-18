@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.10](https://github.com/nsheaps/claude-utils/compare/v0.8.9...v0.8.10) (2026-02-18)
+
+### Bug Fixes
+
+* **ci:** replace heredoc with printf in release workflow ([568211d](https://github.com/nsheaps/claude-utils/commit/568211d0f7a1bc2980087f9b6cff17a13c898c0b))
+
 ## [0.8.9](https://github.com/nsheaps/claude-utils/compare/v0.8.8...v0.8.9) (2026-02-18)
 
 ### Refactoring

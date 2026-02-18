@@ -38,6 +38,8 @@ jobs:
 
       - name: Run release-it
         id: release
+        env:
+          GITHUB_TOKEN: ${{ steps.auth.outputs.token }}
         run: |
           yarn release-it --ci
           TAG=$(git describe --tags --abbrev=0)
@@ -75,7 +77,7 @@ jobs:
           TARBALL_URL="https://github.com/${{ github.repository }}/archive/refs/tags/${TAG}.tar.gz"
           echo "Downloading tarball from: $TARBALL_URL"
           curl -fsSL "$TARBALL_URL" -o /tmp/archive.tar.gz
-          SHA256=$(shasum -a 256 /tmp/archive.tar.gz | cut -d' ' -f1)
+          SHA256=$(sha256sum /tmp/archive.tar.gz | cut -d' ' -f1)
           echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
           echo "Successfully got SHA256: $SHA256"
 
@@ -123,12 +125,12 @@ jobs:
           git commit -m "chore: update claude-utils to ${VERSION}"
           git push -u origin "$BRANCH"
 
-          cat > /tmp/pr-body.md << BODY_EOF
-          Automated formula update from claude-utils release
+          cat > /tmp/pr-body.md <<BODY_EOF
+Automated formula update from claude-utils release
 
-          **Release:** ${RELEASE_URL}
-          **Workflow:** ${JOB_URL}
-          BODY_EOF
+**Release:** ${RELEASE_URL}
+**Workflow:** ${JOB_URL}
+BODY_EOF
 
           PR_URL=$(gh pr create \
             --title "chore: update claude-utils to ${VERSION}" \

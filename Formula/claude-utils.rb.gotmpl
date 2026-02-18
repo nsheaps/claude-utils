@@ -12,11 +12,16 @@ class ClaudeUtils < Formula
     url 'https://github.com/nsheaps/claude-utils.git', branch: 'main'
   end
 
+  depends_on 'nsheaps/devsetup/claude-team'
   depends_on 'fzf'
   depends_on 'gum'
 
   def install
-    bin.install Dir['bin/*']
+    # Install all bin scripts except claude-team and ct (now in claude-team formula)
+    Dir['bin/*'].each do |f|
+      next if %w[claude-team ct].include?(File.basename(f))
+      bin.install f
+    end
   end
 
   test do

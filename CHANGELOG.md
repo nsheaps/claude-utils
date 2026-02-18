@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.8](https://github.com/nsheaps/claude-utils/compare/v0.8.7...v0.8.8) (2026-02-18)
+
+### Bug Fixes
+
+* homebrew formula auto-publish race condition and stale PR cleanup ([e43f514](https://github.com/nsheaps/claude-utils/commit/e43f514f7f70ce680002ad3a4b637aaf2a67189e)), closes [#88](https://github.com/nsheaps/claude-utils/issues/88) [#91](https://github.com/nsheaps/claude-utils/issues/91) [#92](https://github.com/nsheaps/claude-utils/issues/92) [#94](https://github.com/nsheaps/claude-utils/issues/94)
+
 ## [0.8.7](https://github.com/nsheaps/claude-utils/compare/v0.8.6...v0.8.7) (2026-02-17)
 
 ### Documentation

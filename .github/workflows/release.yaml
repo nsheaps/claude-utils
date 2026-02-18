@@ -125,12 +125,7 @@ jobs:
           git commit -m "chore: update claude-utils to ${VERSION}"
           git push -u origin "$BRANCH"
 
-          cat > /tmp/pr-body.md <<BODY_EOF
-Automated formula update from claude-utils release
-
-**Release:** ${RELEASE_URL}
-**Workflow:** ${JOB_URL}
-BODY_EOF
+          printf 'Automated formula update from claude-utils release\n\n**Release:** %s\n**Workflow:** %s\n' "$RELEASE_URL" "$JOB_URL" > /tmp/pr-body.md
 
           PR_URL=$(gh pr create \
             --title "chore: update claude-utils to ${VERSION}" \

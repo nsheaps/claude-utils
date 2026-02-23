@@ -21,3 +21,8 @@ echo "All scripts passed syntax check."
 [tasks.lint-formula]
 description = "Lint Homebrew formula with rubocop"
 run = "rubocop Formula/*.rb --config .rubocop.yml"
+
+[tasks.check]
+description = "Run all checks (lint + test)"
+depends = ["lint", "test"]
+run = "echo 'All checks passed'"

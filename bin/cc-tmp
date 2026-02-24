@@ -23,7 +23,7 @@ EOF
 # Parse for help only, pass everything else to claude
 for arg in "$@"; do
   case "$arg" in
-    -h|--help) show_help ;;
+  -h | --help) show_help ;;
   esac
 done
 
@@ -32,7 +32,8 @@ WS_DIR="/tmp/claude-workspace-$NOW"
 
 mkdir -p "$WS_DIR"
 
-SYSTEM_PROMPT="$(cat << EOPROMPT
+SYSTEM_PROMPT="$(
+  cat <<EOPROMPT
 The user has launched you in an ephemeral workspace located at $WS_DIR.
 
 This workspace persists after you exit - it will NOT be automatically deleted.

@@ -20,9 +20,15 @@ FORCE=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --force)   FORCE=true; shift ;;
-    -h|--help) show_help ;;
-    *)         echo "Unknown option: $1" >&2; show_help ;;
+  --force)
+    FORCE=true
+    shift
+    ;;
+  -h | --help) show_help ;;
+  *)
+    echo "Unknown option: $1" >&2
+    show_help
+    ;;
   esac
 done
 
@@ -41,7 +47,7 @@ while IFS= read -r pid; do
   # Check ancestry for happy processes
   DOMINATED_BY_HAPPY=false
   P=$pid
-  while (( P > 1 )); do
+  while ((P > 1)); do
     PINFO=$(ps -o ppid=,comm= -p "$P" 2>/dev/null || true)
     [[ -z "$PINFO" ]] && break
     PP=${PINFO%% *}

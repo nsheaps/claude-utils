@@ -50,11 +50,11 @@ EOF
 }
 
 case "${1:-}" in
-  -v|--version) show_version ;;
-  -h|--help|"") show_help ;;
-  *)
-    echo "Unknown option: $1" >&2
-    echo "Run 'claude-utils --help' for usage." >&2
-    exit 1
-    ;;
+-v | --version) show_version ;;
+-h | --help | "") show_help ;;
+*)
+  echo "Unknown option: $1" >&2
+  echo "Run 'claude-utils --help' for usage." >&2
+  exit 1
+  ;;
 esac

@@ -46,6 +46,18 @@ EOF
   fi
 fi
 
+# Update installed Claude Code plugins
+INSTALLED_PLUGINS_FILE="${CLAUDE_HOME:-$HOME/.claude}/plugins/installed_plugins.json"
+if [[ -f "$INSTALLED_PLUGINS_FILE" ]] && command -v jq &>/dev/null; then
+  PLUGIN_NAMES="$(jq -r '.plugins | keys[]' "$INSTALLED_PLUGINS_FILE" 2>/dev/null)"
+  if [[ -n "$PLUGIN_NAMES" ]]; then
+    echo "Checking for plugin updates..."
+    while IFS= read -r plugin; do
+      command claude plugin update "$plugin" 2>/dev/null || true
+    done <<< "$PLUGIN_NAMES"
+  fi
+fi
+
 claude_check_settings_backup
 
 trap claude_check_settings_backup EXIT

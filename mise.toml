@@ -1,6 +1,7 @@
 [tools]
 node = "lts"
 yarn = "4"
+shfmt = "latest"
 
 [tasks.test]
 description = "Run CLI tests"

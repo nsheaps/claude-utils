@@ -76,7 +76,7 @@ if [[ -f "$INSTALLED_PLUGINS_FILE" ]] && command -v jq &>/dev/null && _plugin_ch
       if [[ -n "$output" ]] && ! echo "$output" | grep -qi "already up.to.date\|no update\|up to date"; then
         UPDATED_PLUGINS+=("$plugin")
       fi
-    done <<< "$PLUGIN_NAMES"
+    done <<<"$PLUGIN_NAMES"
 
     if [[ ${#UPDATED_PLUGINS[@]} -gt 0 ]]; then
       echo "Updated plugins:"
@@ -86,7 +86,7 @@ if [[ -f "$INSTALLED_PLUGINS_FILE" ]] && command -v jq &>/dev/null && _plugin_ch
     fi
   fi
   # Record check timestamp regardless of whether updates were found
-  date +%s > "$PLUGIN_CHECK_TIMESTAMP"
+  date +%s >"$PLUGIN_CHECK_TIMESTAMP"
 fi
 
 claude_check_settings_backup

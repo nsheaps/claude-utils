@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.2](https://github.com/nsheaps/claude-utils/compare/v0.9.1...v0.9.2) (2026-02-24)
+
+### Documentation
+
+* **research:** commit orphaned research files from session ([ee9e328](https://github.com/nsheaps/claude-utils/commit/ee9e32831126f99da7f84aec34a70ed166e95fc1))
+
 ## [0.9.1](https://github.com/nsheaps/claude-utils/compare/v0.9.0...v0.9.1) (2026-02-24)
 
 ## [0.9.0](https://github.com/nsheaps/claude-utils/compare/v0.8.11...v0.9.0) (2026-02-24)

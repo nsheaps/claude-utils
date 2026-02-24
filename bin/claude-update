@@ -16,7 +16,7 @@ show_help() {
 
 for arg in "$@"; do
   case "$arg" in
-    -h|--help) show_help ;;
+  -h | --help) show_help ;;
   esac
 done
 

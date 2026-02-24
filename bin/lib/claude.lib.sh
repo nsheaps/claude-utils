@@ -59,7 +59,7 @@ _claudeish() {
   fi
 
   # Fall back to claude if happy is not installed
-  if [[ "$BIN_NAME" == "happy" ]] && ! command -v happy &> /dev/null; then
+  if [[ "$BIN_NAME" == "happy" ]] && ! command -v happy &>/dev/null; then
     echo "happy CLI not found. Install via \`npm install -g happy-coder\`" >&2
     echo "  see: https://happy.engineering/docs/quick-start/" >&2
     echo "Falling back to 'claude'." >&2

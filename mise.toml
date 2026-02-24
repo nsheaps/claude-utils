@@ -7,22 +7,79 @@ description = "Run CLI tests"
 run = "bash test/cli-test.sh"
 
 [tasks.lint]
-description = "Check bash syntax for all scripts"
+description = "Run ShellCheck on all bash scripts"
 run = """
-find bin -type f -name '*.sh' -o -type f ! -name '*.*' | while read -r script; do
-  if head -1 "$script" | grep -q 'bash'; then
-    echo "Checking $script..."
-    bash -n "$script"
+bash_files=""
+for f in $(find bin -type f -name '*.sh' -o -type f ! -name '*.*'); do
+  if head -1 "$f" | grep -q 'bash'; then
+    bash_files="$bash_files $f"
   fi
 done
-echo "All scripts passed syntax check."
+for f in $(find bin/lib -type f -name '*.sh' 2>/dev/null); do
+  if head -1 "$f" | grep -q 'bash'; then
+    bash_files="$bash_files $f"
+  fi
+done
+for f in $(find test -type f -name '*.sh' 2>/dev/null); do
+  if head -1 "$f" | grep -q 'bash'; then
+    bash_files="$bash_files $f"
+  fi
+done
+echo "Checking:$bash_files"
+shellcheck $bash_files
 """
 
 [tasks.lint-formula]
 description = "Lint Homebrew formula with rubocop"
 run = "rubocop Formula/*.rb --config .rubocop.yml"
 
+[tasks.fmt]
+description = "Format all bash scripts with shfmt"
+run = """
+bash_files=""
+for f in $(find bin -type f -name '*.sh' -o -type f ! -name '*.*'); do
+  if head -1 "$f" | grep -q 'bash'; then
+    bash_files="$bash_files $f"
+  fi
+done
+for f in $(find bin/lib -type f -name '*.sh' 2>/dev/null); do
+  if head -1 "$f" | grep -q 'bash'; then
+    bash_files="$bash_files $f"
+  fi
+done
+for f in $(find test -type f -name '*.sh' 2>/dev/null); do
+  if head -1 "$f" | grep -q 'bash'; then
+    bash_files="$bash_files $f"
+  fi
+done
+echo "Formatting:$bash_files"
+shfmt -w $bash_files
+"""
+
+[tasks.fmt-check]
+description = "Check formatting of all bash scripts"
+run = """
+bash_files=""
+for f in $(find bin -type f -name '*.sh' -o -type f ! -name '*.*'); do
+  if head -1 "$f" | grep -q 'bash'; then
+    bash_files="$bash_files $f"
+  fi
+done
+for f in $(find bin/lib -type f -name '*.sh' 2>/dev/null); do
+  if head -1 "$f" | grep -q 'bash'; then
+    bash_files="$bash_files $f"
+  fi
+done
+for f in $(find test -type f -name '*.sh' 2>/dev/null); do
+  if head -1 "$f" | grep -q 'bash'; then
+    bash_files="$bash_files $f"
+  fi
+done
+echo "Checking:$bash_files"
+shfmt -d $bash_files
+"""
+
 [tasks.check]
-description = "Run all checks (lint + test)"
-depends = ["lint", "test"]
+description = "Run all checks (lint + fmt-check + test)"
+depends = ["lint", "fmt-check", "test"]
 run = "echo 'All checks passed'"

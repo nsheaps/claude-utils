@@ -70,32 +70,32 @@ CLAUDE_ARGS=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    -m|--mode)
-      if [[ -z "${2:-}" ]]; then
-        fatal "--mode requires a value: auto, in-process, or tmux"
-      fi
-      case "$2" in
-        auto|in-process|tmux) TEAMMATE_MODE="$2" ;;
-        *) fatal "Invalid mode '$2'. Must be: auto, in-process, or tmux" ;;
-      esac
-      shift 2
-      ;;
-    --no-interactive)
-      INTERACTIVE=false
-      shift
-      ;;
-    -h|--help)
-      show_help
-      ;;
-    --)
-      shift
-      CLAUDE_ARGS+=("$@")
-      break
-      ;;
-    *)
-      CLAUDE_ARGS+=("$1")
-      shift
-      ;;
+  -m | --mode)
+    if [[ -z "${2:-}" ]]; then
+      fatal "--mode requires a value: auto, in-process, or tmux"
+    fi
+    case "$2" in
+    auto | in-process | tmux) TEAMMATE_MODE="$2" ;;
+    *) fatal "Invalid mode '$2'. Must be: auto, in-process, or tmux" ;;
+    esac
+    shift 2
+    ;;
+  --no-interactive)
+    INTERACTIVE=false
+    shift
+    ;;
+  -h | --help)
+    show_help
+    ;;
+  --)
+    shift
+    CLAUDE_ARGS+=("$@")
+    break
+    ;;
+  *)
+    CLAUDE_ARGS+=("$1")
+    shift
+    ;;
   esac
 done
 

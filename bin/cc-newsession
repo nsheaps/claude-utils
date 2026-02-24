@@ -25,9 +25,15 @@ CLAUDE_ARGS=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --temp)    IS_TEMP=true; shift ;;
-    -h|--help) show_help ;;
-    *)         CLAUDE_ARGS+=("$1"); shift ;;
+  --temp)
+    IS_TEMP=true
+    shift
+    ;;
+  -h | --help) show_help ;;
+  *)
+    CLAUDE_ARGS+=("$1")
+    shift
+    ;;
   esac
 done
 
@@ -55,7 +61,8 @@ else
   TEMP_NOTE="This workspace persists after you exit - it will NOT be automatically deleted."
 fi
 
-SYSTEM_PROMPT="$(cat << EOPROMPT
+SYSTEM_PROMPT="$(
+  cat <<EOPROMPT
 The user has launched you in an ephemeral workspace located at $WS_DIR.
 $TEMP_NOTE
 

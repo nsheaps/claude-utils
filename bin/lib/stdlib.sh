@@ -85,7 +85,6 @@ info() {
   echo -e "${ANSI_BLUE}[INFO]${ANSI_RESET} $1"
 }
 
-
 # dryrun() prints a dry-run message with [DRY] prefix
 dryrun() {
   echo -e "${ANSI_YELLOW}[DRY]${ANSI_RESET} $1"
@@ -317,7 +316,7 @@ realpath.absolute() {
       REPLY="${REPLY%/}/$1"
       shift
       ;;
-    esac done
+  esac done
   ${eg:+shopt -u $eg}
 }
 # ---

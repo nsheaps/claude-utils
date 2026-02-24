@@ -21,7 +21,7 @@ EOF
 
 for arg in "$@"; do
   case "$arg" in
-    -h|--help) show_help ;;
+  -h | --help) show_help ;;
   esac
 done
 
@@ -58,8 +58,14 @@ if [[ ${#OPTIONS[@]} -eq 0 ]]; then
   printf "Choice [1-2]: "
   read -r choice
   case "$choice" in
-    1) "$SCRIPT_DIR/run-claude" --resume "$@"; exit ;;
-    *) echo "Cancelled."; exit 0 ;;
+  1)
+    "$SCRIPT_DIR/run-claude" --resume "$@"
+    exit
+    ;;
+  *)
+    echo "Cancelled."
+    exit 0
+    ;;
   esac
 fi
 

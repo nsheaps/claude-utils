@@ -29,14 +29,14 @@ show_help() {
 
 for arg in "$@"; do
   case "$arg" in
-    -h|--help) show_help ;;
+  -h | --help) show_help ;;
   esac
 done
 
 CHECK_FOR_UPDATES_ON_FORMULAE=("claude-code" "claude-utils")
-AVAILABLE_UPDATES="$(HOMEBREW_NO_AUTO_UPDATE=1 brew outdated --verbose "${CHECK_FOR_UPDATES_ON_FORMULAE[@]}" || true )"
+AVAILABLE_UPDATES="$(HOMEBREW_NO_AUTO_UPDATE=1 brew outdated --verbose "${CHECK_FOR_UPDATES_ON_FORMULAE[@]}" || true)"
 if [[ -n "$AVAILABLE_UPDATES" ]]; then
-  cat << EOF
+  cat <<EOF
 Updates are available for the following formulae:"
 $(echo "$AVAILABLE_UPDATES" | xargs -I{} echo " - local {} remote")
 

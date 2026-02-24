@@ -32,16 +32,43 @@ show_help() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    -v|--verbose)  VERBOSE=true; shift ;;
-    --no-archive)  NO_ARCHIVE=true; shift ;;
-    --no-user)     NO_USER=true; shift ;;
-    --no-project)  NO_PROJECT=true; shift ;;
-    --no-rules)    NO_RULES=true; shift ;;
-    --no-agents)   NO_AGENTS=true; shift ;;
-    --no-commands) NO_COMMANDS=true; shift ;;
-    --no-settings) NO_SETTINGS=true; shift ;;
-    -h|--help)     show_help ;;
-    *)             echo "Unknown option: $1" >&2; show_help ;;
+  -v | --verbose)
+    VERBOSE=true
+    shift
+    ;;
+  --no-archive)
+    NO_ARCHIVE=true
+    shift
+    ;;
+  --no-user)
+    NO_USER=true
+    shift
+    ;;
+  --no-project)
+    NO_PROJECT=true
+    shift
+    ;;
+  --no-rules)
+    NO_RULES=true
+    shift
+    ;;
+  --no-agents)
+    NO_AGENTS=true
+    shift
+    ;;
+  --no-commands)
+    NO_COMMANDS=true
+    shift
+    ;;
+  --no-settings)
+    NO_SETTINGS=true
+    shift
+    ;;
+  -h | --help) show_help ;;
+  *)
+    echo "Unknown option: $1" >&2
+    show_help
+    ;;
   esac
 done
 
@@ -50,15 +77,15 @@ DIAG_DIR=$(mktemp -d)
 TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 # Gather Claude Code stream output
-STREAM_OUTPUT=$(echo '{"type":"user","message":{"role":"user","content":"/context"},"session_id":"default","parent_tool_use_id":null}' \
-  | claude -p --input-format stream-json --output-format stream-json 2>&1)
+STREAM_OUTPUT=$(echo '{"type":"user","message":{"role":"user","content":"/context"},"session_id":"default","parent_tool_use_id":null}' |
+  claude -p --input-format stream-json --output-format stream-json 2>&1)
 
 # Extract init message (type=system, subtype=init)
 INIT_JSON=$(echo "$STREAM_OUTPUT" | jq -c 'select(.type=="system" and .subtype=="init")' | head -1)
 
 # Extract context output from user message
-CONTEXT_OUTPUT=$(echo "$STREAM_OUTPUT" | grep '"type":"user"' | jq -r '.message.content' \
-  | sed 's/<local-command-stdout>//g' | sed 's/<\/local-command-stdout>//g' 2>/dev/null || echo "(failed to parse)")
+CONTEXT_OUTPUT=$(echo "$STREAM_OUTPUT" | grep '"type":"user"' | jq -r '.message.content' |
+  sed 's/<local-command-stdout>//g' | sed 's/<\/local-command-stdout>//g' 2>/dev/null || echo "(failed to parse)")
 
 # Generate diagnostics report
 generate_report() {
@@ -120,10 +147,10 @@ if [[ "$VERBOSE" == "true" ]]; then
 fi
 
 # Save report to temp directory
-echo "$REPORT" > "$DIAG_DIR/diagnostics.md"
+echo "$REPORT" >"$DIAG_DIR/diagnostics.md"
 
 # Save raw init JSON for debugging
-echo "$INIT_JSON" | jq '.' > "$DIAG_DIR/init.json" 2>/dev/null || echo "{}" > "$DIAG_DIR/init.json"
+echo "$INIT_JSON" | jq '.' >"$DIAG_DIR/init.json" 2>/dev/null || echo "{}" >"$DIAG_DIR/init.json"
 
 # Copy config files (with error handling for missing files)
 copy_if_exists() {
@@ -212,7 +239,7 @@ if [[ "$NO_PROJECT" != "true" ]]; then
 fi
 
 # Create manifest of what was collected
-find "$DIAG_DIR" -type f | sed "s|$DIAG_DIR/||" | sort > "$DIAG_DIR/manifest.txt"
+find "$DIAG_DIR" -type f | sed "s|$DIAG_DIR/||" | sort >"$DIAG_DIR/manifest.txt"
 
 # Count files by category
 count_files() {

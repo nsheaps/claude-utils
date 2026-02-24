@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.0](https://github.com/nsheaps/claude-utils/compare/v0.8.11...v0.9.0) (2026-02-24)
+
+### Features
+
+* update installed plugins during startup update check ([#7](https://github.com/nsheaps/claude-utils/issues/7)) ([e51218f](https://github.com/nsheaps/claude-utils/commit/e51218f5ec3e1f3f18f022b58856459c4abfb6dc))
+
 ## [0.8.11](https://github.com/nsheaps/claude-utils/compare/v0.8.10...v0.8.11) (2026-02-24)
 
 ### Maintenance

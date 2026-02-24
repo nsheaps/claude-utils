@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.11](https://github.com/nsheaps/claude-utils/compare/v0.8.10...v0.8.11) (2026-02-24)
+
+### Maintenance
+
+* add check meta-task to mise for org consistency ([#6](https://github.com/nsheaps/claude-utils/issues/6)) ([d048fa9](https://github.com/nsheaps/claude-utils/commit/d048fa9b24f1ebbd80ddf44e99d39e8f36714178))
+
 ## [0.8.10](https://github.com/nsheaps/claude-utils/compare/v0.8.9...v0.8.10) (2026-02-18)
 
 ### Bug Fixes

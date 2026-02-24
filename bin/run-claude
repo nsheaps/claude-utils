@@ -46,16 +46,47 @@ EOF
   fi
 fi
 
-# Update installed Claude Code plugins
-INSTALLED_PLUGINS_FILE="${CLAUDE_HOME:-$HOME/.claude}/plugins/installed_plugins.json"
-if [[ -f "$INSTALLED_PLUGINS_FILE" ]] && command -v jq &>/dev/null; then
+# Update installed Claude Code plugins (with 5-hour cooldown)
+CLAUDE_HOME="${CLAUDE_HOME:-$HOME/.claude}"
+INSTALLED_PLUGINS_FILE="$CLAUDE_HOME/plugins/installed_plugins.json"
+PLUGIN_CHECK_TIMESTAMP="$CLAUDE_HOME/.plugin-check-timestamp"
+PLUGIN_CHECK_COOLDOWN_SECONDS=$((5 * 60 * 60)) # 5 hours
+
+_plugin_check_needed() {
+  if [[ ! -f "$PLUGIN_CHECK_TIMESTAMP" ]]; then
+    return 0 # No timestamp — check needed
+  fi
+  local last_check now elapsed
+  last_check="$(cat "$PLUGIN_CHECK_TIMESTAMP")"
+  now="$(date +%s)"
+  elapsed=$((now - last_check))
+  if [[ $elapsed -ge $PLUGIN_CHECK_COOLDOWN_SECONDS ]]; then
+    return 0 # Cooldown expired
+  fi
+  return 1 # Still within cooldown
+}
+
+if [[ -f "$INSTALLED_PLUGINS_FILE" ]] && command -v jq &>/dev/null && _plugin_check_needed; then
   PLUGIN_NAMES="$(jq -r '.plugins | keys[]' "$INSTALLED_PLUGINS_FILE" 2>/dev/null)"
   if [[ -n "$PLUGIN_NAMES" ]]; then
-    echo "Checking for plugin updates..."
+    UPDATED_PLUGINS=()
     while IFS= read -r plugin; do
-      command claude plugin update "$plugin" 2>/dev/null || true
+      output="$(command claude plugin update "$plugin" 2>&1 || true)"
+      # Check if the output indicates an actual update (not "already up to date")
+      if [[ -n "$output" ]] && ! echo "$output" | grep -qi "already up.to.date\|no update\|up to date"; then
+        UPDATED_PLUGINS+=("$plugin")
+      fi
     done <<< "$PLUGIN_NAMES"
+
+    if [[ ${#UPDATED_PLUGINS[@]} -gt 0 ]]; then
+      echo "Updated plugins:"
+      for p in "${UPDATED_PLUGINS[@]}"; do
+        echo "  - $p"
+      done
+    fi
   fi
+  # Record check timestamp regardless of whether updates were found
+  date +%s > "$PLUGIN_CHECK_TIMESTAMP"
 fi
 
 claude_check_settings_backup

@@ -1,0 +1,6 @@
+{
+  "Exclude": [
+    "docs/research/",
+    ".claude/tmp/"
+  ]
+}

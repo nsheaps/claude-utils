@@ -247,9 +247,9 @@ describe("AgenticConverter Strategy Selection", () => {
         preferredStrategy: "auto",
       });
 
-      // Claude Agent SDK is actually installed in this project, so it may
-      // pick that up. The test verifies strategy selection logic runs.
-      expect(["claude", "oneshot", "opencode", "none"]).toContain(result.strategyUsed);
+      // Auto-select now falls back to codegen (always available).
+      // Claude Agent SDK may also be detected. The test verifies strategy selection logic runs.
+      expect(["claude", "oneshot", "opencode", "codegen", "none"]).toContain(result.strategyUsed);
     } finally {
       if (origKey) process.env.ANTHROPIC_API_KEY = origKey;
     }

@@ -37,6 +37,7 @@ interface ParsedArgs {
   direction?: string;
   agentic?: boolean;
   oneshot?: boolean;
+  codegen?: boolean;
   strategy?: string;
   sdk?: string; // legacy alias for --strategy
   apiKey?: string;
@@ -96,6 +97,9 @@ function parseArgs(args: string[]): ParsedArgs {
         break;
       case "--oneshot":
         parsed.oneshot = true;
+        break;
+      case "--codegen":
+        parsed.codegen = true;
         break;
       case "--strategy":
         parsed.strategy = args[++j];
@@ -183,25 +187,30 @@ OPTIONS:
                              auto                (auto-detect source format)
   --dir <path>             Directory for validate/detect commands
 
-AI-POWERED CONVERSION:
-  Three strategies for AI-assisted conversion of complex components:
+CONVERSION STRATEGIES:
+  Four strategies for converting complex components:
 
-  1. Agentic (Claude Agent SDK) — Multi-turn agent with tool use
-     Best for: OpenCode → Claude Code (uses target platform SDK)
-     Flag: --agentic --strategy claude
+  1. Codegen (AST/Template) — Programmatic code generation via TypeScript AST
+     Best for: Free, deterministic, no API keys needed
+     Flag: --codegen
 
-  2. Agentic (OpenCode SDK) — Multi-turn agent via OpenCode
-     Best for: Claude Code → OpenCode (uses target platform SDK)
-     Flag: --agentic --strategy opencode
-
-  3. One-Shot (Anthropic Messages API) — Single API call code generation
-     Best for: Fast/cheap conversion, CI pipelines, deterministic output
+  2. One-Shot (Anthropic Messages API) — Single API call code generation
+     Best for: Smarter conversion, CI pipelines
      Flag: --oneshot
      Requires: ANTHROPIC_API_KEY env var or --api-key flag
 
-  --agentic                Enable AI conversion via agentic SDK (multi-turn)
-  --oneshot                Enable AI conversion via one-shot (single API call)
-  --strategy <s>           Strategy: claude | opencode | oneshot | auto
+  3. Agentic (Claude Agent SDK) — Multi-turn agent with tool use
+     Best for: OpenCode → Claude Code (uses target platform SDK)
+     Flag: --agentic --strategy claude
+
+  4. Agentic (OpenCode SDK) — Multi-turn agent via OpenCode
+     Best for: Claude Code → OpenCode (uses target platform SDK)
+     Flag: --agentic --strategy opencode
+
+  --codegen                Use AST-based codegen (free, no API key)
+  --oneshot                Use one-shot AI (single API call)
+  --agentic                Use agentic SDK (multi-turn)
+  --strategy <s>           Strategy: codegen | oneshot | claude | opencode | auto
   --api-key <key>          Anthropic API key (or set ANTHROPIC_API_KEY)
   --model <model>          Model for one-shot (default: claude-sonnet-4-20250514)
   --base-url <url>         Base URL for Anthropic-compatible API
@@ -222,7 +231,10 @@ EXAMPLES:
   # Convert a Claude Code plugin to OpenCode (rule-based)
   plugin-convert convert -s ./my-plugin -t ./my-plugin-opencode -d claude-to-opencode
 
-  # Convert with one-shot for smarter hook/command conversion
+  # Convert with AST codegen (free, no API key)
+  plugin-convert convert -s ./my-plugin -t ./my-plugin-opencode --codegen
+
+  # Convert with one-shot AI for smarter conversion
   plugin-convert convert -s ./my-plugin -t ./my-plugin-opencode --oneshot
 
   # Convert with agentic SDK for maximum quality
@@ -235,10 +247,10 @@ EXAMPLES:
   # Sync changes incrementally
   plugin-convert sync -s ./my-plugin -t ./my-plugin-opencode -d auto
 
-  # Convert entire marketplace with one-shot
+  # Convert entire marketplace with codegen
   plugin-convert marketplace convert \\
     -s ./claude-marketplace -t ./opencode-marketplace \\
-    -d claude-to-opencode --oneshot --generate-docs
+    -d claude-to-opencode --codegen --generate-docs
 `);
 }
 
@@ -247,13 +259,16 @@ EXAMPLES:
 function resolveStrategy(args: ParsedArgs): ConversionStrategy {
   // Explicit --strategy flag takes priority
   if (args.strategy) {
-    const valid: ConversionStrategy[] = ["claude", "opencode", "oneshot", "auto"];
+    const valid: ConversionStrategy[] = ["claude", "opencode", "oneshot", "codegen", "auto"];
     if (valid.includes(args.strategy as ConversionStrategy)) {
       return args.strategy as ConversionStrategy;
     }
     logger.warn(`Unknown strategy "${args.strategy}"; using auto`);
     return "auto";
   }
+
+  // --codegen flag
+  if (args.codegen) return "codegen";
 
   // --oneshot flag
   if (args.oneshot) return "oneshot";
@@ -302,15 +317,17 @@ async function handleConvert(args: ParsedArgs): Promise<void> {
   const engine = new ConversionEngine();
   const result = await engine.convert(source, target, direction, "full");
 
-  // Run AI-powered conversion if enabled
-  if (args.agentic || args.oneshot || args.strategy) {
+  // Run enhanced conversion if enabled
+  if (args.agentic || args.oneshot || args.codegen || args.strategy) {
     const strategy = resolveStrategy(args);
     const strategyLabel =
-      strategy === "oneshot"
-        ? "one-shot"
-        : strategy === "auto"
-          ? "auto-select"
-          : `agentic (${strategy})`;
+      strategy === "codegen"
+        ? "codegen (AST)"
+        : strategy === "oneshot"
+          ? "one-shot"
+          : strategy === "auto"
+            ? "auto-select"
+            : `agentic (${strategy})`;
     logger.info(`Running AI conversion: ${strategyLabel}...`);
 
     const converter = new AgenticConverter();

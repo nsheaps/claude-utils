@@ -36,6 +36,15 @@ jobs:
       - name: Install dependencies
         run: yarn install
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install Bun dependencies
+        run: bun install
+
+      - name: Build plugin-convert binary
+        run: bun build src/cli/index.ts --compile --outfile dist/plugin-convert
+
       - name: Run release-it
         id: release
         env:
@@ -45,6 +54,15 @@ jobs:
           TAG=$(git describe --tags --abbrev=0)
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload binary to release
+        env:
+          GITHUB_TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          TAG=$(git describe --tags --abbrev=0)
+          if [ -f dist/plugin-convert ]; then
+            gh release upload "$TAG" dist/plugin-convert --clobber
+          fi
 
   update-homebrew:
     needs: release

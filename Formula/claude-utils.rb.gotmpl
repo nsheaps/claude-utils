@@ -17,9 +17,17 @@ class ClaudeUtils < Formula
 
   def install
     bin.install Dir['bin/*']
+
+    # Install compiled plugin-convert binary if present in dist/
+    if File.exist?('dist/plugin-convert')
+      bin.install 'dist/plugin-convert'
+    end
   end
 
   test do
     assert_match 'ccresume', shell_output("#{bin}/ccresume --help 2>&1", 1)
+    if File.exist?("#{bin}/plugin-convert")
+      assert_match 'plugin-convert', shell_output("#{bin}/plugin-convert --version 2>&1")
+    end
   end
 end

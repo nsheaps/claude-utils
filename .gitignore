@@ -28,3 +28,6 @@ test/tmp/
 
 # mise local config
 .mise.local.toml
+
+# Plugin conversion artifacts
+.plugin-sync-state.json

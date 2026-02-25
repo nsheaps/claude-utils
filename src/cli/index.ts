@@ -10,22 +10,16 @@
  *   plugin-convert marketplace [cmd]     Marketplace-level operations
  *   plugin-convert detect [path]         Detect plugin format
  *
- * Options:
- *   --source, -s     Source plugin directory
- *   --target, -t     Target output directory
- *   --direction, -d  Conversion direction (claude-to-opencode | opencode-to-claude | auto)
- *   --agentic        Enable agentic conversion using AI SDKs
- *   --sdk            Preferred SDK (claude | opencode | auto)
- *   --budget         Max budget for agentic conversion in USD
- *   --json           Output results as JSON
- *   --verbose, -v    Verbose output
- *   --help, -h       Show help
- *   --version        Show version
+ * AI-Powered Conversion Strategies:
+ *   --agentic        Use agentic SDK (multi-turn agent loop)
+ *   --codegen        Use codegen (single-shot API call, faster/cheaper)
+ *   --strategy       Explicit strategy: claude | opencode | codegen | auto
  */
 
 import { resolve } from "path";
 import { ConversionEngine } from "../converters/engine";
 import { AgenticConverter } from "../agents/agentic-converter";
+import type { ConversionStrategy } from "../agents/agentic-converter";
 import { MarketplaceConverter } from "../marketplace/marketplace-converter";
 import { validatePlugin, detectPluginFormat } from "../utils/validator";
 import { logger, setLogLevel, setJsonOutput } from "../utils/logger";
@@ -42,7 +36,12 @@ interface ParsedArgs {
   target?: string;
   direction?: string;
   agentic?: boolean;
-  sdk?: string;
+  codegen?: boolean;
+  strategy?: string;
+  sdk?: string; // legacy alias for --strategy
+  apiKey?: string;
+  model?: string;
+  baseUrl?: string;
   budget?: number;
   json?: boolean;
   verbose?: boolean;
@@ -95,8 +94,24 @@ function parseArgs(args: string[]): ParsedArgs {
       case "--agentic":
         parsed.agentic = true;
         break;
+      case "--codegen":
+        parsed.codegen = true;
+        break;
+      case "--strategy":
+        parsed.strategy = args[++j];
+        break;
       case "--sdk":
+        // Legacy alias — map to strategy
         parsed.sdk = args[++j];
+        break;
+      case "--api-key":
+        parsed.apiKey = args[++j];
+        break;
+      case "--model":
+        parsed.model = args[++j];
+        break;
+      case "--base-url":
+        parsed.baseUrl = args[++j];
         break;
       case "--budget":
         parsed.budget = parseFloat(args[++j]);
@@ -167,9 +182,32 @@ OPTIONS:
                              opencode-to-claude  (OpenCode → Claude Code)
                              auto                (auto-detect source format)
   --dir <path>             Directory for validate/detect commands
-  --agentic                Enable AI-powered agentic conversion
-  --sdk <sdk>              Preferred SDK: claude | opencode | auto
+
+AI-POWERED CONVERSION:
+  Three strategies for AI-assisted conversion of complex components:
+
+  1. Agentic (Claude Agent SDK) — Multi-turn agent with tool use
+     Best for: OpenCode → Claude Code (uses target platform SDK)
+     Flag: --agentic --strategy claude
+
+  2. Agentic (OpenCode SDK) — Multi-turn agent via OpenCode
+     Best for: Claude Code → OpenCode (uses target platform SDK)
+     Flag: --agentic --strategy opencode
+
+  3. Codegen (Anthropic Messages API) — Single-shot code generation
+     Best for: Fast/cheap conversion, CI pipelines, deterministic output
+     Flag: --codegen
+     Requires: ANTHROPIC_API_KEY env var or --api-key flag
+
+  --agentic                Enable AI conversion via agentic SDK (multi-turn)
+  --codegen                Enable AI conversion via codegen (single-shot API)
+  --strategy <s>           Strategy: claude | opencode | codegen | auto
+  --api-key <key>          Anthropic API key (or set ANTHROPIC_API_KEY)
+  --model <model>          Model for codegen (default: claude-sonnet-4-20250514)
+  --base-url <url>         Base URL for Anthropic-compatible API
   --budget <usd>           Max budget for agentic conversion (default: 0.50)
+
+OTHER OPTIONS:
   --parallel <n>           Max parallel conversions for marketplace (default: 4)
   --generate-docs          Generate documentation for marketplace conversion
   --run-validation         Run validation after marketplace conversion
@@ -181,26 +219,49 @@ OPTIONS:
   --version                Show version
 
 EXAMPLES:
-  # Convert a Claude Code plugin to OpenCode
+  # Convert a Claude Code plugin to OpenCode (rule-based)
   plugin-convert convert -s ./my-plugin -t ./my-plugin-opencode -d claude-to-opencode
+
+  # Convert with codegen for smarter hook/command conversion
+  plugin-convert convert -s ./my-plugin -t ./my-plugin-opencode --codegen
+
+  # Convert with agentic SDK for maximum quality
+  plugin-convert convert -s ./my-plugin -t ./my-plugin-opencode --agentic
+
+  # Codegen with explicit model and API key
+  plugin-convert convert -s ./my-plugin -t ./out --codegen \\
+    --api-key sk-ant-... --model claude-sonnet-4-20250514
 
   # Sync changes incrementally
   plugin-convert sync -s ./my-plugin -t ./my-plugin-opencode -d auto
 
-  # Preview changes without applying
-  plugin-convert diff -s ./my-plugin -t ./my-plugin-opencode -d auto
-
-  # Validate a converted plugin
-  plugin-convert validate --dir ./my-plugin-opencode
-
-  # Convert entire marketplace with agentic assistance
+  # Convert entire marketplace with codegen
   plugin-convert marketplace convert \\
     -s ./claude-marketplace -t ./opencode-marketplace \\
-    -d claude-to-opencode --agentic --generate-docs
-
-  # Generate CI workflows for a marketplace fork
-  plugin-convert marketplace init-ci --dir ./opencode-marketplace -d claude-to-opencode
+    -d claude-to-opencode --codegen --generate-docs
 `);
+}
+
+// ── Strategy Resolution ──────────────────────────────────────────────
+
+function resolveStrategy(args: ParsedArgs): ConversionStrategy {
+  // Explicit --strategy flag takes priority
+  if (args.strategy) {
+    const valid: ConversionStrategy[] = ["claude", "opencode", "codegen", "auto"];
+    if (valid.includes(args.strategy as ConversionStrategy)) {
+      return args.strategy as ConversionStrategy;
+    }
+    logger.warn(`Unknown strategy "${args.strategy}"; using auto`);
+    return "auto";
+  }
+
+  // --codegen flag
+  if (args.codegen) return "codegen";
+
+  // --sdk flag (legacy)
+  if (args.sdk) return args.sdk as ConversionStrategy;
+
+  return "auto";
 }
 
 // ── Command Handlers ─────────────────────────────────────────────────
@@ -239,23 +300,41 @@ async function handleConvert(args: ParsedArgs): Promise<void> {
   logger.info(`Converting plugin: ${direction}`, { source, target });
 
   const engine = new ConversionEngine();
-  let result = await engine.convert(source, target, direction, "full");
+  const result = await engine.convert(source, target, direction, "full");
 
-  // Run agentic conversion if enabled
-  if (args.agentic) {
-    logger.info("Running agentic conversion...");
-    const agenticConverter = new AgenticConverter();
-    const agenticResult = await agenticConverter.convert({
+  // Run AI-powered conversion if enabled
+  if (args.agentic || args.codegen || args.strategy) {
+    const strategy = resolveStrategy(args);
+    const strategyLabel =
+      strategy === "codegen"
+        ? "codegen"
+        : strategy === "auto"
+          ? "auto-select"
+          : `agentic (${strategy})`;
+    logger.info(`Running AI conversion: ${strategyLabel}...`);
+
+    const converter = new AgenticConverter();
+    const aiResult = await converter.convert({
       direction,
       sourcePath: source,
       outputPath: target,
       maxBudgetUsd: args.budget,
       enabled: true,
-      preferredSdk: (args.sdk as "claude" | "opencode" | "auto") || "auto",
+      preferredStrategy: strategy,
+      apiKey: args.apiKey,
+      model: args.model,
+      baseUrl: args.baseUrl,
     });
 
-    result.warnings.push(...agenticResult.warnings);
-    result.changesApplied.push(...agenticResult.changes);
+    result.warnings.push(...aiResult.warnings);
+    result.changesApplied.push(...aiResult.changes);
+
+    if (aiResult.tokenUsage) {
+      logger.info("Token usage", {
+        input: String(aiResult.tokenUsage.input),
+        output: String(aiResult.tokenUsage.output),
+      });
+    }
   }
 
   if (args.json) {

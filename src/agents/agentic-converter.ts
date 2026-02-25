@@ -1,17 +1,33 @@
 /**
- * Agentic conversion layer that uses AI SDKs to intelligently convert
- * plugin components that require semantic understanding.
+ * AI-powered conversion layer with three strategies:
  *
- * When converting from Claude Code → OpenCode, uses the OpenCode SDK
- * (@opencode-ai/sdk) first for context-aware conversion.
- * When converting from OpenCode → Claude Code, uses the Claude Agent SDK
- * (@anthropic-ai/claude-agent-sdk) first.
+ * 1. **Agentic (Claude Agent SDK)** — Runs a multi-turn agent that reads source
+ *    files, reasons about the conversion, and writes output. Best when converting
+ *    OpenCode → Claude Code (uses the target platform's SDK for context).
  *
- * Falls back to the other SDK if the preferred one is unavailable.
+ * 2. **Agentic (OpenCode SDK)** — Same multi-turn approach via OpenCode's SDK.
+ *    Best when converting Claude Code → OpenCode.
+ *
+ * 3. **Codegen (Anthropic Messages API)** — Single-shot code generation. Reads
+ *    all source files, sends them to the API in one request, and writes the
+ *    generated output. Faster, cheaper, and deterministic compared to agentic.
+ *
+ * Selection logic (--strategy flag or auto):
+ * - "codegen": always use codegen (requires ANTHROPIC_API_KEY)
+ * - "claude": always use Claude Agent SDK
+ * - "opencode": always use OpenCode SDK
+ * - "auto" (default):
+ *     1. If explicitly --codegen, use codegen
+ *     2. If direction is opencode-to-claude and Claude SDK available, use it
+ *     3. If direction is claude-to-opencode and OpenCode SDK available, use it
+ *     4. If ANTHROPIC_API_KEY is set, use codegen as fallback
+ *     5. Else use whichever agentic SDK is available
  */
 
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { join, dirname } from "path";
+import { CodegenConverter } from "./codegen-converter";
+import type { CodegenConversionResult } from "./codegen-converter";
 import type {
   ConversionDirection,
   ConversionWarning,
@@ -23,12 +39,14 @@ import type {
 interface SDKAvailability {
   claudeAgentSDK: boolean;
   openCodeSDK: boolean;
+  anthropicApiKey: boolean;
 }
 
 async function detectSDKs(): Promise<SDKAvailability> {
   const result: SDKAvailability = {
     claudeAgentSDK: false,
     openCodeSDK: false,
+    anthropicApiKey: !!(process.env.ANTHROPIC_API_KEY),
   };
 
   try {
@@ -48,28 +66,39 @@ async function detectSDKs(): Promise<SDKAvailability> {
   return result;
 }
 
+// ── Conversion Strategy Type ─────────────────────────────────────────
+
+export type ConversionStrategy = "claude" | "opencode" | "codegen" | "auto";
+
 // ── Agentic Conversion Interface ─────────────────────────────────────
 
 export interface AgenticConversionOptions {
   direction: ConversionDirection;
   sourcePath: string;
   outputPath: string;
-  /** Specific components to convert agentically */
+  /** Specific components to convert */
   components?: Array<"hooks" | "skills" | "agents" | "commands" | "mcp">;
   /** Maximum budget for agentic conversion (USD) */
   maxBudgetUsd?: number;
-  /** Whether to use agentic conversion (falls back to rule-based if false) */
+  /** Whether to use AI-powered conversion (falls back to rule-based if false) */
   enabled?: boolean;
-  /** Preferred SDK to use */
-  preferredSdk?: "claude" | "opencode" | "auto";
+  /** Preferred strategy: claude (agent SDK), opencode (agent SDK), codegen (API), or auto */
+  preferredStrategy?: ConversionStrategy;
+  /** API key for codegen strategy */
+  apiKey?: string;
+  /** Model for codegen strategy */
+  model?: string;
+  /** Base URL for codegen (Anthropic-compatible API) */
+  baseUrl?: string;
 }
 
 export interface AgenticConversionResult {
-  sdkUsed: "claude" | "opencode" | "none";
+  strategyUsed: "claude" | "opencode" | "codegen" | "none";
   conversions: AgenticComponentResult[];
   warnings: ConversionWarning[];
   changes: ChangeRecord[];
   totalCostUsd?: number;
+  tokenUsage?: { input: number; output: number };
 }
 
 interface AgenticComponentResult {
@@ -79,7 +108,7 @@ interface AgenticComponentResult {
   reasoning?: string;
 }
 
-// ── Main Agentic Converter ───────────────────────────────────────────
+// ── Main Converter ───────────────────────────────────────────────────
 
 export class AgenticConverter {
   private sdks: SDKAvailability | null = null;
@@ -89,13 +118,13 @@ export class AgenticConverter {
   ): Promise<AgenticConversionResult> {
     if (options.enabled === false) {
       return {
-        sdkUsed: "none",
+        strategyUsed: "none",
         conversions: [],
         warnings: [
           {
             severity: "info",
-            component: "agentic",
-            message: "Agentic conversion disabled; using rule-based conversion only",
+            component: "ai-conversion",
+            message: "AI-powered conversion disabled; using rule-based conversion only",
           },
         ],
         changes: [],
@@ -103,20 +132,29 @@ export class AgenticConverter {
     }
 
     this.sdks = await detectSDKs();
-    const preferredSdk = this.selectSDK(options);
 
-    if (preferredSdk === "none") {
+    // Override API key availability if explicitly provided
+    if (options.apiKey) {
+      this.sdks.anthropicApiKey = true;
+    }
+
+    const strategy = this.selectStrategy(options);
+
+    if (strategy === "none") {
       return {
-        sdkUsed: "none",
+        strategyUsed: "none",
         conversions: [],
         warnings: [
           {
             severity: "warning",
-            component: "agentic",
+            component: "ai-conversion",
             message:
-              "No AI SDK available. Install @anthropic-ai/claude-agent-sdk or @opencode-ai/sdk for agentic conversion.",
+              "No AI conversion strategy available. Options: " +
+              "(1) set ANTHROPIC_API_KEY for codegen, " +
+              "(2) install @anthropic-ai/claude-agent-sdk, " +
+              "(3) install @opencode-ai/sdk",
             suggestion:
-              "Run: bun add @anthropic-ai/claude-agent-sdk or bun add @opencode-ai/sdk",
+              "Fastest: export ANTHROPIC_API_KEY=sk-ant-... then use --codegen",
           },
         ],
         changes: [],
@@ -131,27 +169,36 @@ export class AgenticConverter {
       "mcp",
     ];
 
-    if (preferredSdk === "claude") {
-      return this.convertWithClaudeSDK(options, components);
-    } else {
-      return this.convertWithOpenCodeSDK(options, components);
+    switch (strategy) {
+      case "codegen":
+        return this.convertWithCodegen(options, components);
+      case "claude":
+        return this.convertWithClaudeSDK(options, components);
+      case "opencode":
+        return this.convertWithOpenCodeSDK(options, components);
+      default:
+        // Unreachable, but satisfy TypeScript
+        return { strategyUsed: "none", conversions: [], warnings: [], changes: [] };
     }
   }
 
-  private selectSDK(
+  private selectStrategy(
     options: AgenticConversionOptions,
-  ): "claude" | "opencode" | "none" {
+  ): "claude" | "opencode" | "codegen" | "none" {
     const sdks = this.sdks!;
+    const pref = options.preferredStrategy || "auto";
 
-    if (options.preferredSdk === "claude" && sdks.claudeAgentSDK) {
-      return "claude";
+    // Explicit strategy requested
+    if (pref === "codegen") {
+      if (sdks.anthropicApiKey) return "codegen";
+      // Can't use codegen without API key — try to fall back
     }
-    if (options.preferredSdk === "opencode" && sdks.openCodeSDK) {
-      return "opencode";
-    }
+    if (pref === "claude" && sdks.claudeAgentSDK) return "claude";
+    if (pref === "opencode" && sdks.openCodeSDK) return "opencode";
 
-    // Auto-select based on direction
-    if (options.preferredSdk === "auto" || !options.preferredSdk) {
+    // Auto-select
+    if (pref === "auto" || pref === "codegen") {
+      // Prefer agentic SDKs when available (richer, multi-turn)
       if (
         options.direction === "claude-to-opencode" &&
         sdks.openCodeSDK
@@ -164,7 +211,11 @@ export class AgenticConverter {
       ) {
         return "claude";
       }
-      // Fallback to whichever is available
+
+      // Fall back to codegen if API key available
+      if (sdks.anthropicApiKey) return "codegen";
+
+      // Last resort: any agentic SDK
       if (sdks.claudeAgentSDK) return "claude";
       if (sdks.openCodeSDK) return "opencode";
     }
@@ -172,7 +223,42 @@ export class AgenticConverter {
     return "none";
   }
 
-  // ── Claude Agent SDK Conversion ──────────────────────────────────
+  // ── Codegen Strategy ─────────────────────────────────────────────
+
+  private async convertWithCodegen(
+    options: AgenticConversionOptions,
+    components: string[],
+  ): Promise<AgenticConversionResult> {
+    const codegen = new CodegenConverter();
+    const result = await codegen.convert({
+      direction: options.direction,
+      sourcePath: options.sourcePath,
+      outputPath: options.outputPath,
+      components: components as Array<"hooks" | "skills" | "agents" | "commands" | "mcp">,
+      apiKey: options.apiKey,
+      model: options.model,
+      baseUrl: options.baseUrl,
+    });
+
+    // Map CodegenConversionResult → AgenticConversionResult
+    return {
+      strategyUsed: "codegen",
+      conversions: result.conversions.map((c) => ({
+        component: c.component,
+        success: c.success,
+        outputFiles: c.files.map((f) => f.path),
+        reasoning: c.reasoning,
+      })),
+      warnings: result.warnings,
+      changes: result.changes,
+      tokenUsage: {
+        input: result.inputTokens,
+        output: result.outputTokens,
+      },
+    };
+  }
+
+  // ── Claude Agent SDK Strategy ────────────────────────────────────
 
   private async convertWithClaudeSDK(
     options: AgenticConversionOptions,
@@ -244,14 +330,14 @@ export class AgenticConverter {
     }
 
     return {
-      sdkUsed: "claude",
+      strategyUsed: "claude",
       conversions,
       warnings,
       changes,
     };
   }
 
-  // ── OpenCode SDK Conversion ──────────────────────────────────────
+  // ── OpenCode SDK Strategy ────────────────────────────────────────
 
   private async convertWithOpenCodeSDK(
     options: AgenticConversionOptions,
@@ -304,14 +390,14 @@ export class AgenticConverter {
     }
 
     return {
-      sdkUsed: "opencode",
+      strategyUsed: "opencode",
       conversions,
       warnings,
       changes,
     };
   }
 
-  // ── Prompt Building ──────────────────────────────────────────────
+  // ── Prompt Building (shared by agentic strategies) ────────────────
 
   private buildConversionPrompt(
     component: string,
@@ -366,7 +452,7 @@ Preserve all functionality and document any limitations.`;
   }
 }
 
-// ── System Prompt for Agentic Conversion ─────────────────────────────
+// ── System Prompt for Agentic Strategies ─────────────────────────────
 
 const CONVERSION_SYSTEM_PROMPT = `You are a plugin conversion specialist that converts between Claude Code and OpenCode plugin formats.
 

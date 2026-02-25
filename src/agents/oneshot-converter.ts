@@ -1,5 +1,5 @@
 /**
- * Codegen-based conversion strategy.
+ * One-shot conversion strategy.
  *
  * Instead of running an agentic loop (Claude Agent SDK or OpenCode SDK),
  * this approach calls the Anthropic Messages API directly with structured
@@ -11,7 +11,7 @@
  * - Faster: no back-and-forth; prompt includes all source content inline
  * - Offline-friendly: can use cached responses or local models
  *
- * The codegen converter reads all source files, embeds them into a
+ * The one-shot converter reads all source files, embeds them into a
  * structured prompt, and asks the model to return the converted files
  * as a JSON structure that we then write to disk.
  */
@@ -27,15 +27,15 @@ import type {
 
 // ── Types ────────────────────────────────────────────────────────────
 
-export interface CodegenConversionOptions {
+export interface OneShotConversionOptions {
   direction: ConversionDirection;
   sourcePath: string;
   outputPath: string;
-  /** Specific components to convert via codegen */
+  /** Specific components to convert via one-shot */
   components?: Array<"hooks" | "skills" | "agents" | "commands" | "mcp">;
   /** API key — defaults to ANTHROPIC_API_KEY env var */
   apiKey?: string;
-  /** Model to use for codegen */
+  /** Model to use for one-shot conversion */
   model?: string;
   /** Max tokens for the response */
   maxTokens?: number;
@@ -43,17 +43,17 @@ export interface CodegenConversionOptions {
   baseUrl?: string;
 }
 
-export interface CodegenConversionResult {
-  strategy: "codegen";
+export interface OneShotConversionResult {
+  strategy: "oneshot";
   model: string;
-  conversions: CodegenComponentResult[];
+  conversions: OneShotComponentResult[];
   warnings: ConversionWarning[];
   changes: ChangeRecord[];
   inputTokens: number;
   outputTokens: number;
 }
 
-interface CodegenComponentResult {
+interface OneShotComponentResult {
   component: string;
   success: boolean;
   files: GeneratedFile[];
@@ -116,12 +116,12 @@ async function callAnthropicAPI(
   return (await response.json()) as AnthropicResponse;
 }
 
-// ── Main Codegen Converter ───────────────────────────────────────────
+// ── Main One-Shot Converter ──────────────────────────────────────────
 
-export class CodegenConverter {
+export class OneShotConverter {
   async convert(
-    options: CodegenConversionOptions,
-  ): Promise<CodegenConversionResult> {
+    options: OneShotConversionOptions,
+  ): Promise<OneShotConversionResult> {
     const apiKey =
       options.apiKey || process.env.ANTHROPIC_API_KEY || "";
     const model = options.model || "claude-sonnet-4-20250514";
@@ -131,15 +131,15 @@ export class CodegenConverter {
 
     if (!apiKey) {
       return {
-        strategy: "codegen",
+        strategy: "oneshot",
         model,
         conversions: [],
         warnings: [
           {
             severity: "warning",
-            component: "codegen",
+            component: "oneshot",
             message:
-              "No API key available. Set ANTHROPIC_API_KEY or pass --api-key for codegen conversion.",
+              "No API key available. Set ANTHROPIC_API_KEY or pass --api-key for one-shot conversion.",
             suggestion:
               "export ANTHROPIC_API_KEY=sk-ant-... or use --api-key flag",
           },
@@ -158,7 +158,7 @@ export class CodegenConverter {
       "mcp",
     ];
 
-    const conversions: CodegenComponentResult[] = [];
+    const conversions: OneShotComponentResult[] = [];
     const warnings: ConversionWarning[] = [];
     const changes: ChangeRecord[] = [];
     let totalInputTokens = 0;
@@ -177,18 +177,18 @@ export class CodegenConverter {
         warnings.push({
           severity: "info",
           component: source.component,
-          message: `No source files found for "${source.component}"; skipping codegen`,
+          message: `No source files found for "${source.component}"; skipping one-shot`,
         });
         continue;
       }
 
       try {
-        const systemPrompt = buildCodegenSystemPrompt(
+        const systemPrompt = buildOneShotSystemPrompt(
           source.component,
           options.direction,
         );
 
-        const userPrompt = buildCodegenUserPrompt(
+        const userPrompt = buildOneShotUserPrompt(
           source.component,
           source.files,
           options.direction,
@@ -209,7 +209,7 @@ export class CodegenConverter {
           .join("");
 
         // Parse the generated files from the response
-        const { files, reasoning } = parseCodegenResponse(responseText);
+        const { files, reasoning } = parseOneShotResponse(responseText);
 
         // Write generated files to disk
         for (const file of files) {
@@ -230,7 +230,7 @@ export class CodegenConverter {
           component: source.component,
           sourcePath: options.sourcePath,
           targetPath: options.outputPath,
-          description: `Codegen converted ${source.component} (${files.length} files) via ${model}`,
+          description: `One-shot converted ${source.component} (${files.length} files) via ${model}`,
         });
       } catch (error) {
         const message =
@@ -238,7 +238,7 @@ export class CodegenConverter {
         warnings.push({
           severity: "error",
           component: source.component,
-          message: `Codegen failed for "${source.component}": ${message}`,
+          message: `One-shot failed for "${source.component}": ${message}`,
           suggestion: "Check API key, network, and model availability",
         });
 
@@ -252,7 +252,7 @@ export class CodegenConverter {
     }
 
     return {
-      strategy: "codegen",
+      strategy: "oneshot",
       model,
       conversions,
       warnings,
@@ -364,7 +364,7 @@ export class CodegenConverter {
 
 // ── Prompt Construction ──────────────────────────────────────────────
 
-function buildCodegenSystemPrompt(
+function buildOneShotSystemPrompt(
   component: string,
   direction: ConversionDirection,
 ): string {
@@ -431,7 +431,7 @@ Example:
 Respond ONLY with the JSON object. No markdown fences, no extra text.`;
 }
 
-function buildCodegenUserPrompt(
+function buildOneShotUserPrompt(
   component: string,
   files: Array<{ path: string; content: string }>,
   direction: ConversionDirection,
@@ -501,7 +501,7 @@ Generate the converted output files. Respond with the JSON object only.`;
 
 // ── Response Parsing ─────────────────────────────────────────────────
 
-function parseCodegenResponse(text: string): {
+function parseOneShotResponse(text: string): {
   files: GeneratedFile[];
   reasoning?: string;
   warnings?: string[];

@@ -1,20 +1,20 @@
-# Codegen Conversion Strategy
+# One-Shot Conversion Strategy
 
 Use the Anthropic Messages API for single-shot code generation to convert plugin components between Claude Code and OpenCode formats.
 
-## Three AI Conversion Strategies
+## AI Conversion Strategies
 
 | Strategy | How It Works | Best For |
 |----------|-------------|----------|
 | **Agentic (Claude SDK)** | Multi-turn agent with tool use via `@anthropic-ai/claude-agent-sdk` | OpenCode → Claude Code; complex conversions needing file exploration |
 | **Agentic (OpenCode SDK)** | Multi-turn agent via `@opencode-ai/sdk` | Claude Code → OpenCode; leveraging OpenCode's native understanding |
-| **Codegen** | Single API call with all source inlined; structured JSON response | Fast/cheap conversions, CI pipelines, deterministic output |
+| **One-Shot** | Single API call with all source inlined; structured JSON response | Fast/cheap conversions, CI pipelines, deterministic output |
 
-## When to Use Codegen
+## When to Use One-Shot
 
 - **CI/CD pipelines** — Deterministic, single request, easy to budget
 - **Batch marketplace conversion** — Cheaper than agentic per-plugin
-- **Hook conversion** — Codegen excels at structural transformations
+- **Hook conversion** — One-shot excels at structural transformations
 - **Command conversion** — Markdown ↔ TypeScript stub generation
 - **When no SDK is installed** — Only needs `ANTHROPIC_API_KEY`, no npm packages
 
@@ -24,7 +24,7 @@ Use the Anthropic Messages API for single-shot code generation to convert plugin
 - **Large plugins** — Source files exceed single API call context limits
 - **Iterative refinement** — Agent can test/validate its own output
 
-## How Codegen Works
+## How One-Shot Works
 
 1. **Collect** — Reads all source files for the requested component
 2. **Prompt** — Builds a structured prompt with format knowledge and source content inline
@@ -47,39 +47,39 @@ The response format is a JSON object:
 ## CLI Usage
 
 ```bash
-# Basic codegen conversion
-plugin-convert convert -s ./my-plugin -t ./out --codegen
+# Basic one-shot conversion
+plugin-convert convert -s ./my-plugin -t ./out --oneshot
 
 # With explicit model and API key
-plugin-convert convert -s ./my-plugin -t ./out --codegen \
+plugin-convert convert -s ./my-plugin -t ./out --oneshot \
   --api-key sk-ant-... --model claude-sonnet-4-20250514
 
 # With custom API base URL (for proxies or compatible APIs)
-plugin-convert convert -s ./my-plugin -t ./out --codegen \
+plugin-convert convert -s ./my-plugin -t ./out --oneshot \
   --base-url https://my-proxy.example.com
 
 # Explicit strategy selection
-plugin-convert convert -s ./my-plugin -t ./out --strategy codegen
+plugin-convert convert -s ./my-plugin -t ./out --strategy oneshot
 
-# Marketplace batch codegen
+# Marketplace batch one-shot
 plugin-convert marketplace convert \
-  -s ./marketplace -t ./marketplace-oc --codegen --generate-docs
+  -s ./marketplace -t ./marketplace-oc --oneshot --generate-docs
 ```
 
 ## Environment Variables
 
 | Variable | Purpose |
 |----------|---------|
-| `ANTHROPIC_API_KEY` | API key for codegen (or use `--api-key`) |
+| `ANTHROPIC_API_KEY` | API key for one-shot (or use `--api-key`) |
 | `ANTHROPIC_BASE_URL` | Custom base URL (or use `--base-url`) |
 
 ## Strategy Auto-Selection
 
-When `--strategy auto` (the default when neither `--agentic` nor `--codegen` is set):
+When `--strategy auto` (the default when neither `--agentic` nor `--oneshot` is set):
 
 1. If direction is Claude→OpenCode and OpenCode SDK installed → use OpenCode SDK
 2. If direction is OpenCode→Claude and Claude SDK installed → use Claude SDK
-3. If `ANTHROPIC_API_KEY` set → use codegen as fallback
+3. If `ANTHROPIC_API_KEY` set → use one-shot as fallback
 4. If any agentic SDK installed → use it
 5. Otherwise → no AI conversion (rule-based only)
 
@@ -87,8 +87,8 @@ When `--strategy auto` (the default when neither `--agentic` nor `--codegen` is 
 
 | Strategy | Typical Cost per Plugin | Latency |
 |----------|------------------------|---------|
-| Codegen (Haiku) | ~$0.001–0.01 | ~2–5s |
-| Codegen (Sonnet) | ~$0.01–0.05 | ~3–8s |
+| One-Shot (Haiku) | ~$0.001–0.01 | ~2–5s |
+| One-Shot (Sonnet) | ~$0.01–0.05 | ~3–8s |
 | Agentic (SDK) | ~$0.10–0.50 | ~30–120s |
 
 ## Fallback Behavior

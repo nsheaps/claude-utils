@@ -8,26 +8,26 @@
  * 2. **Agentic (OpenCode SDK)** — Same multi-turn approach via OpenCode's SDK.
  *    Best when converting Claude Code → OpenCode.
  *
- * 3. **Codegen (Anthropic Messages API)** — Single-shot code generation. Reads
+ * 3. **One-Shot (Anthropic Messages API)** — Single-shot code generation. Reads
  *    all source files, sends them to the API in one request, and writes the
  *    generated output. Faster, cheaper, and deterministic compared to agentic.
  *
  * Selection logic (--strategy flag or auto):
- * - "codegen": always use codegen (requires ANTHROPIC_API_KEY)
+ * - "oneshot": always use one-shot (requires ANTHROPIC_API_KEY)
  * - "claude": always use Claude Agent SDK
  * - "opencode": always use OpenCode SDK
  * - "auto" (default):
- *     1. If explicitly --codegen, use codegen
+ *     1. If explicitly --oneshot, use one-shot
  *     2. If direction is opencode-to-claude and Claude SDK available, use it
  *     3. If direction is claude-to-opencode and OpenCode SDK available, use it
- *     4. If ANTHROPIC_API_KEY is set, use codegen as fallback
+ *     4. If ANTHROPIC_API_KEY is set, use one-shot as fallback
  *     5. Else use whichever agentic SDK is available
  */
 
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { join, dirname } from "path";
-import { CodegenConverter } from "./codegen-converter";
-import type { CodegenConversionResult } from "./codegen-converter";
+import { OneShotConverter } from "./oneshot-converter";
+import type { OneShotConversionResult } from "./oneshot-converter";
 import type {
   ConversionDirection,
   ConversionWarning,
@@ -68,7 +68,7 @@ async function detectSDKs(): Promise<SDKAvailability> {
 
 // ── Conversion Strategy Type ─────────────────────────────────────────
 
-export type ConversionStrategy = "claude" | "opencode" | "codegen" | "auto";
+export type ConversionStrategy = "claude" | "opencode" | "oneshot" | "auto";
 
 // ── Agentic Conversion Interface ─────────────────────────────────────
 
@@ -82,18 +82,18 @@ export interface AgenticConversionOptions {
   maxBudgetUsd?: number;
   /** Whether to use AI-powered conversion (falls back to rule-based if false) */
   enabled?: boolean;
-  /** Preferred strategy: claude (agent SDK), opencode (agent SDK), codegen (API), or auto */
+  /** Preferred strategy: claude (agent SDK), opencode (agent SDK), oneshot (API), or auto */
   preferredStrategy?: ConversionStrategy;
-  /** API key for codegen strategy */
+  /** API key for one-shot strategy */
   apiKey?: string;
-  /** Model for codegen strategy */
+  /** Model for one-shot strategy */
   model?: string;
-  /** Base URL for codegen (Anthropic-compatible API) */
+  /** Base URL for one-shot (Anthropic-compatible API) */
   baseUrl?: string;
 }
 
 export interface AgenticConversionResult {
-  strategyUsed: "claude" | "opencode" | "codegen" | "none";
+  strategyUsed: "claude" | "opencode" | "oneshot" | "none";
   conversions: AgenticComponentResult[];
   warnings: ConversionWarning[];
   changes: ChangeRecord[];
@@ -150,11 +150,11 @@ export class AgenticConverter {
             component: "ai-conversion",
             message:
               "No AI conversion strategy available. Options: " +
-              "(1) set ANTHROPIC_API_KEY for codegen, " +
+              "(1) set ANTHROPIC_API_KEY for one-shot, " +
               "(2) install @anthropic-ai/claude-agent-sdk, " +
               "(3) install @opencode-ai/sdk",
             suggestion:
-              "Fastest: export ANTHROPIC_API_KEY=sk-ant-... then use --codegen",
+              "Fastest: export ANTHROPIC_API_KEY=sk-ant-... then use --oneshot",
           },
         ],
         changes: [],
@@ -170,8 +170,8 @@ export class AgenticConverter {
     ];
 
     switch (strategy) {
-      case "codegen":
-        return this.convertWithCodegen(options, components);
+      case "oneshot":
+        return this.convertWithOneShot(options, components);
       case "claude":
         return this.convertWithClaudeSDK(options, components);
       case "opencode":
@@ -184,20 +184,20 @@ export class AgenticConverter {
 
   private selectStrategy(
     options: AgenticConversionOptions,
-  ): "claude" | "opencode" | "codegen" | "none" {
+  ): "claude" | "opencode" | "oneshot" | "none" {
     const sdks = this.sdks!;
     const pref = options.preferredStrategy || "auto";
 
     // Explicit strategy requested
-    if (pref === "codegen") {
-      if (sdks.anthropicApiKey) return "codegen";
-      // Can't use codegen without API key — try to fall back
+    if (pref === "oneshot") {
+      if (sdks.anthropicApiKey) return "oneshot";
+      // Can't use one-shot without API key — try to fall back
     }
     if (pref === "claude" && sdks.claudeAgentSDK) return "claude";
     if (pref === "opencode" && sdks.openCodeSDK) return "opencode";
 
     // Auto-select
-    if (pref === "auto" || pref === "codegen") {
+    if (pref === "auto" || pref === "oneshot") {
       // Prefer agentic SDKs when available (richer, multi-turn)
       if (
         options.direction === "claude-to-opencode" &&
@@ -212,8 +212,8 @@ export class AgenticConverter {
         return "claude";
       }
 
-      // Fall back to codegen if API key available
-      if (sdks.anthropicApiKey) return "codegen";
+      // Fall back to one-shot if API key available
+      if (sdks.anthropicApiKey) return "oneshot";
 
       // Last resort: any agentic SDK
       if (sdks.claudeAgentSDK) return "claude";
@@ -223,14 +223,14 @@ export class AgenticConverter {
     return "none";
   }
 
-  // ── Codegen Strategy ─────────────────────────────────────────────
+  // ── One-Shot Strategy ─────────────────────────────────────────────
 
-  private async convertWithCodegen(
+  private async convertWithOneShot(
     options: AgenticConversionOptions,
     components: string[],
   ): Promise<AgenticConversionResult> {
-    const codegen = new CodegenConverter();
-    const result = await codegen.convert({
+    const oneshot = new OneShotConverter();
+    const result = await oneshot.convert({
       direction: options.direction,
       sourcePath: options.sourcePath,
       outputPath: options.outputPath,
@@ -240,9 +240,9 @@ export class AgenticConverter {
       baseUrl: options.baseUrl,
     });
 
-    // Map CodegenConversionResult → AgenticConversionResult
+    // Map OneShotConversionResult → AgenticConversionResult
     return {
-      strategyUsed: "codegen",
+      strategyUsed: "oneshot",
       conversions: result.conversions.map((c) => ({
         component: c.component,
         success: c.success,

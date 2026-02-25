@@ -1,18 +1,18 @@
 /**
- * Tests for the codegen converter and strategy selection.
+ * Tests for the one-shot converter and strategy selection.
  */
 
 import { describe, test, expect, beforeEach, afterEach, mock } from "bun:test";
 import { mkdtemp, rm, mkdir, writeFile, readFile, stat } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
-import { CodegenConverter } from "../agents/codegen-converter";
+import { OneShotConverter } from "../agents/oneshot-converter";
 import { AgenticConverter } from "../agents/agentic-converter";
 
 let tempDir: string;
 
 beforeEach(async () => {
-  tempDir = await mkdtemp(join(tmpdir(), "codegen-test-"));
+  tempDir = await mkdtemp(join(tmpdir(), "oneshot-test-"));
 });
 
 afterEach(async () => {
@@ -58,11 +58,11 @@ async function createClaudeCodePlugin(dir: string): Promise<string> {
   return pluginDir;
 }
 
-// ── CodegenConverter Unit Tests ──────────────────────────────────────
+// ── OneShotConverter Unit Tests ──────────────────────────────────────
 
-describe("CodegenConverter", () => {
+describe("OneShotConverter", () => {
   test("returns warning when no API key is available", async () => {
-    const converter = new CodegenConverter();
+    const converter = new OneShotConverter();
     const origKey = process.env.ANTHROPIC_API_KEY;
     delete process.env.ANTHROPIC_API_KEY;
 
@@ -73,7 +73,7 @@ describe("CodegenConverter", () => {
         outputPath: join(tempDir, "out"),
       });
 
-      expect(result.strategy).toBe("codegen");
+      expect(result.strategy).toBe("oneshot");
       expect(result.warnings.length).toBeGreaterThan(0);
       expect(result.warnings[0].message).toContain("No API key");
     } finally {
@@ -86,7 +86,7 @@ describe("CodegenConverter", () => {
 
     // We can't test the actual API call without a key, but we can test
     // that the converter initializes correctly with valid options
-    const converter = new CodegenConverter();
+    const converter = new OneShotConverter();
     const result = await converter.convert({
       direction: "claude-to-opencode",
       sourcePath: pluginDir,
@@ -94,7 +94,7 @@ describe("CodegenConverter", () => {
       // No API key — will get the "no key" warning
     });
 
-    expect(result.strategy).toBe("codegen");
+    expect(result.strategy).toBe("oneshot");
     expect(result.conversions).toHaveLength(0); // no API key, nothing converted
     expect(result.warnings.some((w) => w.message.includes("No API key"))).toBe(true);
   });
@@ -107,7 +107,7 @@ describe("CodegenConverter", () => {
       JSON.stringify({ name: "empty" }),
     );
 
-    const converter = new CodegenConverter();
+    const converter = new OneShotConverter();
     const result = await converter.convert({
       direction: "claude-to-opencode",
       sourcePath: emptyPlugin,
@@ -124,11 +124,11 @@ describe("CodegenConverter", () => {
 
 // ── Response Parser Tests ────────────────────────────────────────────
 
-describe("Codegen Response Parsing", () => {
-  // Test the internal parseCodegenResponse function indirectly
+describe("One-Shot Response Parsing", () => {
+  // Test the internal parseOneShotResponse function indirectly
   // by verifying file extraction works through the full converter
 
-  test("handles valid JSON codegen response format", () => {
+  test("handles valid JSON one-shot response format", () => {
     // This tests the format we expect from the API
     const exampleResponse = JSON.stringify({
       reasoning: "Converted hooks from PreToolUse to tool.execute.before",
@@ -191,11 +191,11 @@ Content here.
 // ── Strategy Selection Tests ─────────────────────────────────────────
 
 describe("AgenticConverter Strategy Selection", () => {
-  test("uses codegen when --codegen specified and API key present", async () => {
+  test("uses oneshot when --oneshot specified and API key present", async () => {
     const converter = new AgenticConverter();
     const origKey = process.env.ANTHROPIC_API_KEY;
 
-    // Set a fake key so codegen strategy is available
+    // Set a fake key so one-shot strategy is available
     // (the actual API call will fail, but strategy selection should work)
     process.env.ANTHROPIC_API_KEY = "sk-ant-test-key";
 
@@ -205,12 +205,12 @@ describe("AgenticConverter Strategy Selection", () => {
         sourcePath: tempDir,
         outputPath: join(tempDir, "out"),
         enabled: true,
-        preferredStrategy: "codegen",
+        preferredStrategy: "oneshot",
         apiKey: "sk-ant-test-key",
         components: [], // empty to avoid actual API calls
       });
 
-      expect(result.strategyUsed).toBe("codegen");
+      expect(result.strategyUsed).toBe("oneshot");
     } finally {
       if (origKey) {
         process.env.ANTHROPIC_API_KEY = origKey;
@@ -249,24 +249,24 @@ describe("AgenticConverter Strategy Selection", () => {
 
       // Claude Agent SDK is actually installed in this project, so it may
       // pick that up. The test verifies strategy selection logic runs.
-      expect(["claude", "codegen", "opencode", "none"]).toContain(result.strategyUsed);
+      expect(["claude", "oneshot", "opencode", "none"]).toContain(result.strategyUsed);
     } finally {
       if (origKey) process.env.ANTHROPIC_API_KEY = origKey;
     }
   });
 
-  test("falls back to codegen when explicit codegen requested with API key", async () => {
+  test("falls back to oneshot when explicit oneshot requested with API key", async () => {
     const converter = new AgenticConverter();
     const result = await converter.convert({
       direction: "claude-to-opencode",
       sourcePath: tempDir,
       outputPath: join(tempDir, "out"),
       enabled: true,
-      preferredStrategy: "codegen",
+      preferredStrategy: "oneshot",
       apiKey: "sk-ant-test",
       components: [], // empty to avoid API calls
     });
 
-    expect(result.strategyUsed).toBe("codegen");
+    expect(result.strategyUsed).toBe("oneshot");
   });
 });

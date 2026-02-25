@@ -16,16 +16,20 @@
  *    TypeScript compiler API. No AI, no API keys. Produces syntactically
  *    correct TypeScript via AST manipulation.
  *
+ * 5. **Free (OpenRouter)** — One-shot conversion via OpenRouter's free models.
+ *    Requires OPENROUTER_API_KEY but no cost. Interactive setup wizard if missing.
+ *
  * Selection logic (--strategy flag or auto):
  * - "codegen": use AST-based codegen (no AI, free)
+ * - "free": use one-shot via OpenRouter free models (requires OPENROUTER_API_KEY)
  * - "oneshot": always use one-shot (requires ANTHROPIC_API_KEY)
  * - "claude": always use Claude Agent SDK
  * - "opencode": always use OpenCode SDK
  * - "auto" (default):
  *     1. If direction matches an installed agentic SDK, use it
  *     2. If ANTHROPIC_API_KEY is set, use one-shot
- *     3. Fall back to codegen (always available)
- *     4. Last resort: any agentic SDK
+ *     3. If OPENROUTER_API_KEY is set, use free
+ *     4. Fall back to codegen (always available)
  */
 
 import { readFile, writeFile, mkdir } from "fs/promises";
@@ -34,6 +38,7 @@ import { OneShotConverter } from "./oneshot-converter";
 import type { OneShotConversionResult } from "./oneshot-converter";
 import { CodegenConverter } from "../codegen/codegen-strategy";
 import type { CodegenConversionResult } from "../codegen/codegen-strategy";
+import { getApiKey } from "../config/config-manager";
 import type {
   ConversionDirection,
   ConversionWarning,
@@ -46,6 +51,7 @@ interface SDKAvailability {
   claudeAgentSDK: boolean;
   openCodeSDK: boolean;
   anthropicApiKey: boolean;
+  openrouterApiKey: boolean;
 }
 
 async function detectSDKs(): Promise<SDKAvailability> {
@@ -53,7 +59,18 @@ async function detectSDKs(): Promise<SDKAvailability> {
     claudeAgentSDK: false,
     openCodeSDK: false,
     anthropicApiKey: !!(process.env.ANTHROPIC_API_KEY),
+    openrouterApiKey: !!(process.env.OPENROUTER_API_KEY),
   };
+
+  // Also check config file for API keys
+  try {
+    const anthropicKey = await getApiKey("anthropic");
+    if (anthropicKey) result.anthropicApiKey = true;
+    const openrouterKey = await getApiKey("openrouter");
+    if (openrouterKey) result.openrouterApiKey = true;
+  } catch {
+    // Config file not available
+  }
 
   try {
     await import("@anthropic-ai/claude-agent-sdk");
@@ -74,7 +91,7 @@ async function detectSDKs(): Promise<SDKAvailability> {
 
 // ── Conversion Strategy Type ─────────────────────────────────────────
 
-export type ConversionStrategy = "claude" | "opencode" | "oneshot" | "codegen" | "auto";
+export type ConversionStrategy = "claude" | "opencode" | "oneshot" | "codegen" | "free" | "auto";
 
 // ── Agentic Conversion Interface ─────────────────────────────────────
 
@@ -88,7 +105,7 @@ export interface AgenticConversionOptions {
   maxBudgetUsd?: number;
   /** Whether to use AI-powered conversion (falls back to rule-based if false) */
   enabled?: boolean;
-  /** Preferred strategy: claude, opencode, oneshot, codegen, or auto */
+  /** Preferred strategy: claude, opencode, oneshot, codegen, free, or auto */
   preferredStrategy?: ConversionStrategy;
   /** API key for one-shot strategy */
   apiKey?: string;
@@ -99,7 +116,7 @@ export interface AgenticConversionOptions {
 }
 
 export interface AgenticConversionResult {
-  strategyUsed: "claude" | "opencode" | "oneshot" | "codegen" | "none";
+  strategyUsed: "claude" | "opencode" | "oneshot" | "codegen" | "free" | "none";
   conversions: AgenticComponentResult[];
   warnings: ConversionWarning[];
   changes: ChangeRecord[];
@@ -157,11 +174,12 @@ export class AgenticConverter {
             message:
               "No conversion strategy available. Options: " +
               "(1) use --codegen for AST-based (free, no API key), " +
-              "(2) set ANTHROPIC_API_KEY for --oneshot, " +
-              "(3) install @anthropic-ai/claude-agent-sdk, " +
-              "(4) install @opencode-ai/sdk",
+              "(2) use --free with OPENROUTER_API_KEY (free AI models), " +
+              "(3) set ANTHROPIC_API_KEY for --oneshot, " +
+              "(4) install @anthropic-ai/claude-agent-sdk, " +
+              "(5) install @opencode-ai/sdk",
             suggestion:
-              "Fastest: use --codegen (free, no API key needed)",
+              "Fastest: use --codegen (free, no API key). Smartest free: use --free with OpenRouter.",
           },
         ],
         changes: [],
@@ -181,6 +199,8 @@ export class AgenticConverter {
         return this.convertWithCodegen(options, components);
       case "oneshot":
         return this.convertWithOneShot(options, components);
+      case "free":
+        return this.convertWithFree(options, components);
       case "claude":
         return this.convertWithClaudeSDK(options, components);
       case "opencode":
@@ -193,12 +213,16 @@ export class AgenticConverter {
 
   private selectStrategy(
     options: AgenticConversionOptions,
-  ): "claude" | "opencode" | "oneshot" | "codegen" | "none" {
+  ): "claude" | "opencode" | "oneshot" | "codegen" | "free" | "none" {
     const sdks = this.sdks!;
     const pref = options.preferredStrategy || "auto";
 
     // Explicit strategy requested
     if (pref === "codegen") return "codegen"; // Always available, no deps
+    if (pref === "free") {
+      if (sdks.openrouterApiKey) return "free";
+      // Can't use free without OpenRouter API key — try to fall back
+    }
     if (pref === "oneshot") {
       if (sdks.anthropicApiKey) return "oneshot";
       // Can't use one-shot without API key — try to fall back
@@ -207,7 +231,7 @@ export class AgenticConverter {
     if (pref === "opencode" && sdks.openCodeSDK) return "opencode";
 
     // Auto-select
-    if (pref === "auto" || pref === "oneshot") {
+    if (pref === "auto" || pref === "oneshot" || pref === "free") {
       // Prefer agentic SDKs when available (richer, multi-turn)
       if (
         options.direction === "claude-to-opencode" &&
@@ -222,8 +246,11 @@ export class AgenticConverter {
         return "claude";
       }
 
-      // Fall back to one-shot if API key available
+      // Fall back to one-shot if Anthropic API key available
       if (sdks.anthropicApiKey) return "oneshot";
+
+      // Fall back to free if OpenRouter API key available
+      if (sdks.openrouterApiKey) return "free";
 
       // Fall back to codegen (always available, no API key needed)
       return "codegen";
@@ -278,6 +305,61 @@ export class AgenticConverter {
     // Map OneShotConversionResult → AgenticConversionResult
     return {
       strategyUsed: "oneshot",
+      conversions: result.conversions.map((c) => ({
+        component: c.component,
+        success: c.success,
+        outputFiles: c.files.map((f) => f.path),
+        reasoning: c.reasoning,
+      })),
+      warnings: result.warnings,
+      changes: result.changes,
+      tokenUsage: {
+        input: result.inputTokens,
+        output: result.outputTokens,
+      },
+    };
+  }
+
+  // ── Free Strategy (OpenRouter) ───────────────────────────────────
+
+  private async convertWithFree(
+    options: AgenticConversionOptions,
+    components: string[],
+  ): Promise<AgenticConversionResult> {
+    // Free strategy = one-shot via OpenRouter with free models
+    const apiKey = options.apiKey || await getApiKey("openrouter") || "";
+
+    if (!apiKey) {
+      return {
+        strategyUsed: "free",
+        conversions: [],
+        warnings: [
+          {
+            severity: "warning",
+            component: "free",
+            message:
+              "No OpenRouter API key available. Set OPENROUTER_API_KEY or run 'plugin-convert setup'.",
+            suggestion:
+              "export OPENROUTER_API_KEY=sk-or-... or run: plugin-convert setup",
+          },
+        ],
+        changes: [],
+      };
+    }
+
+    const oneshot = new OneShotConverter();
+    const result = await oneshot.convert({
+      direction: options.direction,
+      sourcePath: options.sourcePath,
+      outputPath: options.outputPath,
+      components: components as Array<"hooks" | "skills" | "agents" | "commands" | "mcp">,
+      apiKey,
+      model: options.model || "openrouter/auto",
+      baseUrl: "https://openrouter.ai/api/v1",
+    });
+
+    return {
+      strategyUsed: "free",
       conversions: result.conversions.map((c) => ({
         component: c.component,
         success: c.success,

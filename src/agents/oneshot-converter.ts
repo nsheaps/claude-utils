@@ -70,10 +70,10 @@ interface CollectedSource {
   files: Array<{ path: string; content: string }>;
 }
 
-// ── Anthropic API client (minimal, no SDK dependency) ────────────────
+// ── API clients (minimal, no SDK dependency) ─────────────────────────
 
-interface AnthropicMessage {
-  role: "user" | "assistant";
+interface APIMessage {
+  role: "user" | "assistant" | "system";
   content: string | Array<{ type: "text"; text: string }>;
 }
 
@@ -83,8 +83,40 @@ interface AnthropicResponse {
   stop_reason: string;
 }
 
+interface OpenAIResponse {
+  choices: Array<{
+    message: { role: string; content: string };
+    finish_reason: string;
+  }>;
+  usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+}
+
+function isOpenRouterUrl(baseUrl: string): boolean {
+  return baseUrl.includes("openrouter.ai");
+}
+
+/**
+ * Unified API caller that routes to Anthropic or OpenRouter format
+ * based on the base URL.
+ */
+async function callAPI(
+  messages: APIMessage[],
+  options: {
+    apiKey: string;
+    model: string;
+    maxTokens: number;
+    system: string;
+    baseUrl: string;
+  },
+): Promise<AnthropicResponse> {
+  if (isOpenRouterUrl(options.baseUrl)) {
+    return callOpenRouterAPI(messages, options);
+  }
+  return callAnthropicAPI(messages, options);
+}
+
 async function callAnthropicAPI(
-  messages: AnthropicMessage[],
+  messages: APIMessage[],
   options: {
     apiKey: string;
     model: string;
@@ -104,7 +136,7 @@ async function callAnthropicAPI(
       model: options.model,
       max_tokens: options.maxTokens,
       system: options.system,
-      messages,
+      messages: messages.filter((m) => m.role !== "system"),
     }),
   });
 
@@ -116,20 +148,82 @@ async function callAnthropicAPI(
   return (await response.json()) as AnthropicResponse;
 }
 
+async function callOpenRouterAPI(
+  messages: APIMessage[],
+  options: {
+    apiKey: string;
+    model: string;
+    maxTokens: number;
+    system: string;
+    baseUrl: string;
+  },
+): Promise<AnthropicResponse> {
+  // OpenRouter uses OpenAI-compatible format
+  const openaiMessages: Array<{ role: string; content: string }> = [
+    { role: "system", content: options.system },
+    ...messages
+      .filter((m) => m.role !== "system")
+      .map((m) => ({
+        role: m.role,
+        content: typeof m.content === "string"
+          ? m.content
+          : m.content.map((b) => b.text).join(""),
+      })),
+  ];
+
+  const response = await fetch(`${options.baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${options.apiKey}`,
+      "HTTP-Referer": "https://github.com/nsheaps/claude-utils",
+      "X-Title": "plugin-convert",
+    },
+    body: JSON.stringify({
+      model: options.model,
+      max_tokens: options.maxTokens,
+      messages: openaiMessages,
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`OpenRouter API error (${response.status}): ${body}`);
+  }
+
+  const result = (await response.json()) as OpenAIResponse;
+
+  // Convert OpenAI response format → Anthropic response format
+  const text = result.choices?.[0]?.message?.content || "";
+  return {
+    content: [{ type: "text", text }],
+    usage: {
+      input_tokens: result.usage?.prompt_tokens || 0,
+      output_tokens: result.usage?.completion_tokens || 0,
+    },
+    stop_reason: result.choices?.[0]?.finish_reason || "end_turn",
+  };
+}
+
 // ── Main One-Shot Converter ──────────────────────────────────────────
 
 export class OneShotConverter {
   async convert(
     options: OneShotConversionOptions,
   ): Promise<OneShotConversionResult> {
-    const apiKey =
-      options.apiKey || process.env.ANTHROPIC_API_KEY || "";
-    const model = options.model || "claude-sonnet-4-20250514";
-    const maxTokens = options.maxTokens || 8192;
     const baseUrl =
       options.baseUrl || process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com";
+    const isOpenRouter = isOpenRouterUrl(baseUrl);
+    const apiKey =
+      options.apiKey ||
+      (isOpenRouter ? process.env.OPENROUTER_API_KEY : process.env.ANTHROPIC_API_KEY) ||
+      "";
+    const model = options.model || (isOpenRouter ? "openrouter/auto" : "claude-sonnet-4-20250514");
+    const maxTokens = options.maxTokens || 8192;
 
     if (!apiKey) {
+      const provider = isOpenRouter ? "OpenRouter" : "Anthropic";
+      const envVar = isOpenRouter ? "OPENROUTER_API_KEY" : "ANTHROPIC_API_KEY";
       return {
         strategy: "oneshot",
         model,
@@ -139,9 +233,9 @@ export class OneShotConverter {
             severity: "warning",
             component: "oneshot",
             message:
-              "No API key available. Set ANTHROPIC_API_KEY or pass --api-key for one-shot conversion.",
+              `No API key available. Set ${envVar} or pass --api-key for one-shot conversion.`,
             suggestion:
-              "export ANTHROPIC_API_KEY=sk-ant-... or use --api-key flag",
+              `export ${envVar}=... or use --api-key flag. Run 'plugin-convert setup' for guided setup.`,
           },
         ],
         changes: [],
@@ -195,7 +289,7 @@ export class OneShotConverter {
           options.outputPath,
         );
 
-        const response = await callAnthropicAPI(
+        const response = await callAPI(
           [{ role: "user", content: userPrompt }],
           { apiKey, model, maxTokens, system: systemPrompt, baseUrl },
         );

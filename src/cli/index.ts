@@ -13,7 +13,8 @@
  * AI-Powered Conversion Strategies:
  *   --agentic        Use agentic SDK (multi-turn agent loop)
  *   --oneshot        Use one-shot (single API call, faster/cheaper)
- *   --strategy       Explicit strategy: claude | opencode | oneshot | auto
+ *   --free           Use free models via OpenRouter (no cost)
+ *   --strategy       Explicit strategy: claude | opencode | oneshot | free | auto
  */
 
 import { resolve } from "path";
@@ -23,6 +24,8 @@ import type { ConversionStrategy } from "../agents/agentic-converter";
 import { MarketplaceConverter } from "../marketplace/marketplace-converter";
 import { validatePlugin, detectPluginFormat } from "../utils/validator";
 import { logger, setLogLevel, setJsonOutput } from "../utils/logger";
+import { ensureApiKey } from "../config/api-key-wizard";
+import { runFullSetup } from "../config/api-key-wizard";
 import type { ConversionDirection, ConversionMode } from "../core/types/common";
 
 const VERSION = "0.1.0";
@@ -38,6 +41,7 @@ interface ParsedArgs {
   agentic?: boolean;
   oneshot?: boolean;
   codegen?: boolean;
+  free?: boolean;
   strategy?: string;
   sdk?: string; // legacy alias for --strategy
   apiKey?: string;
@@ -100,6 +104,9 @@ function parseArgs(args: string[]): ParsedArgs {
         break;
       case "--codegen":
         parsed.codegen = true;
+        break;
+      case "--free":
+        parsed.free = true;
         break;
       case "--strategy":
         parsed.strategy = args[++j];
@@ -171,6 +178,7 @@ COMMANDS:
   validate       Validate a plugin's structure
   detect         Detect the format of a plugin directory
   marketplace    Marketplace-level operations
+  setup          Configure API keys (interactive wizard)
 
 MARKETPLACE SUBCOMMANDS:
   marketplace convert    Convert an entire marketplace
@@ -188,32 +196,38 @@ OPTIONS:
   --dir <path>             Directory for validate/detect commands
 
 CONVERSION STRATEGIES:
-  Four strategies for converting complex components:
+  Five strategies for converting complex components:
 
   1. Codegen (AST/Template) — Programmatic code generation via TypeScript AST
      Best for: Free, deterministic, no API keys needed
      Flag: --codegen
 
-  2. One-Shot (Anthropic Messages API) — Single API call code generation
-     Best for: Smarter conversion, CI pipelines
+  2. Free (OpenRouter) — AI conversion using free models via OpenRouter
+     Best for: Smarter conversion at no cost
+     Flag: --free
+     Requires: OPENROUTER_API_KEY (will prompt to set up if missing)
+
+  3. One-Shot (Anthropic Messages API) — Single API call code generation
+     Best for: Highest-quality AI conversion, CI pipelines
      Flag: --oneshot
      Requires: ANTHROPIC_API_KEY env var or --api-key flag
 
-  3. Agentic (Claude Agent SDK) — Multi-turn agent with tool use
+  4. Agentic (Claude Agent SDK) — Multi-turn agent with tool use
      Best for: OpenCode → Claude Code (uses target platform SDK)
      Flag: --agentic --strategy claude
 
-  4. Agentic (OpenCode SDK) — Multi-turn agent via OpenCode
+  5. Agentic (OpenCode SDK) — Multi-turn agent via OpenCode
      Best for: Claude Code → OpenCode (uses target platform SDK)
      Flag: --agentic --strategy opencode
 
   --codegen                Use AST-based codegen (free, no API key)
+  --free                   Use free AI models via OpenRouter (no cost)
   --oneshot                Use one-shot AI (single API call)
   --agentic                Use agentic SDK (multi-turn)
-  --strategy <s>           Strategy: codegen | oneshot | claude | opencode | auto
-  --api-key <key>          Anthropic API key (or set ANTHROPIC_API_KEY)
-  --model <model>          Model for one-shot (default: claude-sonnet-4-20250514)
-  --base-url <url>         Base URL for Anthropic-compatible API
+  --strategy <s>           Strategy: codegen | free | oneshot | claude | opencode | auto
+  --api-key <key>          API key (Anthropic or OpenRouter, based on strategy)
+  --model <model>          Model for AI strategies (default varies by strategy)
+  --base-url <url>         Base URL for API (auto-set for --free)
   --budget <usd>           Max budget for agentic conversion (default: 0.50)
 
 OTHER OPTIONS:
@@ -234,7 +248,10 @@ EXAMPLES:
   # Convert with AST codegen (free, no API key)
   plugin-convert convert -s ./my-plugin -t ./my-plugin-opencode --codegen
 
-  # Convert with one-shot AI for smarter conversion
+  # Convert with free AI models (no cost, uses OpenRouter)
+  plugin-convert convert -s ./my-plugin -t ./my-plugin-opencode --free
+
+  # Convert with one-shot AI for highest quality
   plugin-convert convert -s ./my-plugin -t ./my-plugin-opencode --oneshot
 
   # Convert with agentic SDK for maximum quality
@@ -243,6 +260,9 @@ EXAMPLES:
   # One-shot with explicit model and API key
   plugin-convert convert -s ./my-plugin -t ./out --oneshot \\
     --api-key sk-ant-... --model claude-sonnet-4-20250514
+
+  # Set up API keys interactively
+  plugin-convert setup
 
   # Sync changes incrementally
   plugin-convert sync -s ./my-plugin -t ./my-plugin-opencode -d auto
@@ -259,7 +279,7 @@ EXAMPLES:
 function resolveStrategy(args: ParsedArgs): ConversionStrategy {
   // Explicit --strategy flag takes priority
   if (args.strategy) {
-    const valid: ConversionStrategy[] = ["claude", "opencode", "oneshot", "codegen", "auto"];
+    const valid: ConversionStrategy[] = ["claude", "opencode", "oneshot", "codegen", "free", "auto"];
     if (valid.includes(args.strategy as ConversionStrategy)) {
       return args.strategy as ConversionStrategy;
     }
@@ -269,6 +289,9 @@ function resolveStrategy(args: ParsedArgs): ConversionStrategy {
 
   // --codegen flag
   if (args.codegen) return "codegen";
+
+  // --free flag
+  if (args.free) return "free";
 
   // --oneshot flag
   if (args.oneshot) return "oneshot";
@@ -318,17 +341,33 @@ async function handleConvert(args: ParsedArgs): Promise<void> {
   const result = await engine.convert(source, target, direction, "full");
 
   // Run enhanced conversion if enabled
-  if (args.agentic || args.oneshot || args.codegen || args.strategy) {
+  if (args.agentic || args.oneshot || args.codegen || args.free || args.strategy) {
     const strategy = resolveStrategy(args);
     const strategyLabel =
       strategy === "codegen"
         ? "codegen (AST)"
-        : strategy === "oneshot"
-          ? "one-shot"
-          : strategy === "auto"
-            ? "auto-select"
-            : `agentic (${strategy})`;
+        : strategy === "free"
+          ? "free (OpenRouter)"
+          : strategy === "oneshot"
+            ? "one-shot"
+            : strategy === "auto"
+              ? "auto-select"
+              : `agentic (${strategy})`;
     logger.info(`Running AI conversion: ${strategyLabel}...`);
+
+    // Ensure API key is available for strategies that need one
+    let apiKey = args.apiKey;
+    if (!apiKey && strategy === "free") {
+      apiKey = await ensureApiKey("openrouter") || undefined;
+      if (!apiKey) {
+        logger.warn("No OpenRouter API key; falling back to codegen.");
+      }
+    } else if (!apiKey && strategy === "oneshot") {
+      apiKey = await ensureApiKey("anthropic") || undefined;
+      if (!apiKey) {
+        logger.warn("No Anthropic API key; falling back to codegen.");
+      }
+    }
 
     const converter = new AgenticConverter();
     const aiResult = await converter.convert({
@@ -338,7 +377,7 @@ async function handleConvert(args: ParsedArgs): Promise<void> {
       maxBudgetUsd: args.budget,
       enabled: true,
       preferredStrategy: strategy,
-      apiKey: args.apiKey,
+      apiKey,
       model: args.model,
       baseUrl: args.baseUrl,
     });
@@ -606,6 +645,9 @@ async function main(): Promise<void> {
       break;
     case "marketplace":
       await handleMarketplace(args);
+      break;
+    case "setup":
+      await runFullSetup();
       break;
     default:
       logger.error(`Unknown command: ${args.command}`);

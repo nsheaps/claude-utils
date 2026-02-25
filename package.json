@@ -8,9 +8,30 @@
     "url": "https://github.com/nsheaps/claude-utils.git"
   },
   "license": "MIT",
+  "scripts": {
+    "build": "bun build src/cli/index.ts --compile --outfile dist/plugin-convert",
+    "build:js": "bun build src/cli/index.ts --outdir dist --target bun",
+    "dev": "bun run src/cli/index.ts",
+    "test": "bun test src/tests/",
+    "test:all": "bun test src/tests/ && bash test/cli-test.sh",
+    "typecheck": "cd src && bun x tsc --noEmit",
+    "lint": "bun x biome check src/",
+    "lint:fix": "bun x biome check --write src/",
+    "fmt": "bun x biome format --write src/",
+    "fmt:check": "bun x biome format src/"
+  },
   "devDependencies": {
+    "@biomejs/biome": "^1.9.0",
     "@release-it/conventional-changelog": "^10.0.0",
+    "@types/bun": "^1.2.0",
     "release-it": "^19.2.4"
   },
-  "packageManager": "yarn@4.12.0+sha512.f45ab632439a67f8bc759bf32ead036a1f413287b9042726b7cc4818b7b49e14e9423ba49b18f9e06ea4941c1ad062385b1d8760a8d5091a1a31e5f6219afca8"
+  "optionalDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.1.0",
+    "@opencode-ai/sdk": "^0.1.0"
+  },
+  "packageManager": "yarn@4.12.0+sha512.f45ab632439a67f8bc759bf32ead036a1f413287b9042726b7cc4818b7b49e14e9423ba49b18f9e06ea4941c1ad062385b1d8760a8d5091a1a31e5f6219afca8",
+  "dependencies": {
+    "typescript": "^5.9.3"
+  }
 }

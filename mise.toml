@@ -1,10 +1,28 @@
 [tools]
 node = "lts"
 yarn = "4"
+bun = "latest"
 
 [tasks.test]
 description = "Run CLI tests"
 run = "bash test/cli-test.sh"
+
+[tasks."test-ts"]
+description = "Run TypeScript tests"
+run = "bun test src/tests/"
+
+[tasks."test-all"]
+description = "Run all tests (shell + TypeScript)"
+depends = ["test", "test-ts"]
+run = "echo 'All tests passed'"
+
+[tasks."build"]
+description = "Build plugin-convert binary"
+run = "bun build src/cli/index.ts --compile --outfile dist/plugin-convert"
+
+[tasks."typecheck"]
+description = "Type check TypeScript source"
+run = "cd src && bun x tsc --noEmit"
 
 [tasks.lint]
 description = "Run ShellCheck on all bash scripts"
@@ -80,6 +98,6 @@ shfmt -d $bash_files
 """
 
 [tasks.check]
-description = "Run all checks (lint + fmt-check + test)"
-depends = ["lint", "fmt-check", "test"]
+description = "Run all checks (lint + fmt-check + test + typecheck)"
+depends = ["lint", "fmt-check", "test", "test-ts", "typecheck"]
 run = "echo 'All checks passed'"

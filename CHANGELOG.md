@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.0](https://github.com/nsheaps/claude-utils/compare/v0.9.2...v0.10.0) (2026-02-26)
+
+### Features
+
+* **run-claude:** show only updated plugins + 5-hour check cooldown ([#9](https://github.com/nsheaps/claude-utils/issues/9)) ([7e921f2](https://github.com/nsheaps/claude-utils/commit/7e921f2f975f645988c287c89c8a8b90c1841480))
+
 ## [0.9.2](https://github.com/nsheaps/claude-utils/compare/v0.9.1...v0.9.2) (2026-02-24)
 
 ### Documentation

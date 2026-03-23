@@ -46,6 +46,21 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
 
+      - name: Upload release assets
+        env:
+          GITHUB_TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          TAG="${{ steps.release.outputs.tag }}"
+          # claude-utils contains multiple platform-independent bash scripts.
+          # ubi (used by mise) expects assets named with OS/arch patterns.
+          # Package all binaries into platform-named tarballs so
+          # `mise install ubi:nsheaps/claude-utils` works out of the box.
+          for platform in linux-amd64 linux-arm64 darwin-amd64 darwin-arm64; do
+            tar -czf "claude-utils-${platform}.tar.gz" -C bin .
+          done
+          gh release upload "$TAG" claude-utils-linux-amd64.tar.gz claude-utils-linux-arm64.tar.gz claude-utils-darwin-amd64.tar.gz claude-utils-darwin-arm64.tar.gz
+          rm -f claude-utils-linux-amd64.tar.gz claude-utils-linux-arm64.tar.gz claude-utils-darwin-amd64.tar.gz claude-utils-darwin-arm64.tar.gz
+
   update-homebrew:
     needs: release
     runs-on: ubuntu-latest

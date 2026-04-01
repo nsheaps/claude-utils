@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.3](https://github.com/nsheaps/claude-utils/compare/v0.10.2...v0.10.3) (2026-04-01)
+
+### Maintenance
+
+* **deps:** update qoomon/actions--context action to v5 ([#14](https://github.com/nsheaps/claude-utils/issues/14)) ([e76140e](https://github.com/nsheaps/claude-utils/commit/e76140edb641bf7414cde2e17f3863b0025ba832))
+
 ## [0.10.2](https://github.com/nsheaps/claude-utils/compare/v0.10.1...v0.10.2) (2026-03-31)
 
 ### Maintenance

@@ -430,7 +430,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@release-it/conventional-changelog@npm:^10.0.5":
+"@release-it/conventional-changelog@npm:^10.0.6":
   version: 10.0.6
   resolution: "@release-it/conventional-changelog@npm:10.0.6"
   dependencies:
@@ -670,7 +670,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "claude-utils@workspace:."
   dependencies:
-    "@release-it/conventional-changelog": "npm:^10.0.5"
+    "@release-it/conventional-changelog": "npm:^10.0.6"
     release-it: "npm:^19.2.4"
   languageName: unknown
   linkType: soft

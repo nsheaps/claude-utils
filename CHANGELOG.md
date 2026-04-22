@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.7](https://github.com/nsheaps/claude-utils/compare/v0.10.6...v0.10.7) (2026-04-22)
+
+### Maintenance
+
+* **deps:** update jdx/mise-action action to v4 ([#21](https://github.com/nsheaps/claude-utils/issues/21)) ([085ecde](https://github.com/nsheaps/claude-utils/commit/085ecde23ec41dcc9b76482f61d60cdc50518a74))
+
 ## [0.10.6](https://github.com/nsheaps/claude-utils/compare/v0.10.5...v0.10.6) (2026-04-21)
 
 ### Maintenance

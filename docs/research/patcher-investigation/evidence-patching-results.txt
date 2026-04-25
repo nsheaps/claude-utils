@@ -1,0 +1,55 @@
+PATCHING ATTEMPTS ON v2.1.119 BINARY
+
+=== SUCCESSFUL ===
+
+1. BINARY STRING REPLACEMENT (Python) - sG6 (isChannelAllowlisted)
+   Original: function sG6(H){if(!H)return!1;let{name:$,marketplace:q}=OK(H);if(!q)return!1;return y18().some((K)=>K.plugin===$&&K.marketplace===q)}
+   Replaced: function sG6(H){return!0}/*xxxxx...xxxxx*/
+   Result: Binary runs, --version reports 2.1.119
+   
+2. BINARY STRING REPLACEMENT (Python) - CZ5 (DevChannelsDialog exit handler)
+   Original: case"exit":g4(1)
+   Replaced: case"exit":K()  
+   Result: Binary runs with both patches applied
+
+3. BUN_OPTIONS --preload injection
+   BUN_OPTIONS="--preload /tmp/patch.js" works - preload scripts execute
+   The preload confirms: process.argv shows "bun /$bunfs/root/src/entrypoints/cli.js"
+   LIMITATION: Functions are module-scoped, not global. Preload can't intercept
+   sG6/CZ5 directly without Bun-specific import hooks.
+
+=== FAILED ===
+
+4. NODE_OPTIONS --require injection
+   NODE_OPTIONS="--require /tmp/patch.js" - silently ignored (it's Bun, not Node)
+   
+5. AGGRESSIVE CZ5 REPLACEMENT (replacing whole function with auto-accept + space padding)
+   Result: "TypeError: Expected CommonJS module to have a function wrapper"
+   Cause: Space padding after closing brace disrupts Bun's bytecode/module detection
+   
+6. AGGRESSIVE CZ5 REPLACEMENT (with comment padding /*xxx*/ after full function replacement)
+   Result: Same TypeError
+   Cause: Replacing too much of the function body breaks Bun's internal module wrapping
+
+=== NOT ATTEMPTED (but feasible) ===
+
+7. LD_PRELOAD interception of libc calls
+8. Bun-specific import hooks via preload (would need Bun.plugin API research)
+9. ptrace-based runtime patching
+10. Extracting embedded JS from Bun binary, patching, re-bundling
+
+=== KEY FINDING ===
+
+The JS source code is EMBEDDED as plaintext strings within the Bun binary.
+Binary string replacement WORKS if:
+- Replacement is exactly the same byte length as original
+- Padding uses valid JS (block comments /*...*/) or minimal whitespace
+- Changes are conservative (small, targeted function body changes)
+- The function structure is preserved (don't replace entire functions with
+  radically different structures)
+
+The patcher scripts CAN be updated to work on the binary by:
+1. Using Python/binary tools instead of text-based readFileSync
+2. Finding target strings with byte offsets instead of regex
+3. Replacing with same-length padded replacements
+4. Testing that the binary still runs after patching

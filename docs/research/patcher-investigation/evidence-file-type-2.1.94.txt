@@ -1,0 +1,1 @@
+/home/nsheaps/.local/share/mise/installs/npm-anthropic-ai-claude-code/2.1.94/bin/claude: symbolic link to ../lib/node_modules/@anthropic-ai/claude-code/cli.js

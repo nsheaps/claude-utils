@@ -1,0 +1,23 @@
+The claude.exe binary is compiled with Bun, NOT Node.js SEA.
+
+Evidence:
+- 1,480 strings containing "bun/Bun/@bun/__bun/__BUN/bun-" in the binary
+- Zero strings matching NODE_SEA, POSTJECT, or node_sea_fuse
+- Binary reports "Bun v1.3.13 (Linux x64 baseline)" in error messages
+- Internal entry point: /$bunfs/root/src/entrypoints/cli.js (Bun virtual filesystem)
+- Bun feature flags present: BUN_FEATURE_FLAG_*, BUN_CONFIG_*, BUN_JSC_*
+- First few strings include: "bun-profile", "BUN_1.2", "Welcome to Bun vk"
+- Build info: uses Bun's bundler (not webpack/esbuild/rollup)
+
+WHY it's big (~245MB):
+- Bun embeds the entire Bun runtime (V8/JSC engine, HTTP server, bundler, etc.)
+- The JS source code is embedded as strings within the Bun binary
+- The Bun runtime alone is ~90MB; the JS bundle adds ~13MB; debug symbols and
+  native dependencies account for the rest
+- The binary is "not stripped" (contains debug symbols)
+
+WHY they switched:
+- Eliminates Node.js as a runtime dependency
+- Faster startup time (Bun is significantly faster than Node.js for CLI tools)
+- Single-file distribution (no node_modules needed)
+- Same pattern as Bun's own npm distribution (bin/bun.exe)

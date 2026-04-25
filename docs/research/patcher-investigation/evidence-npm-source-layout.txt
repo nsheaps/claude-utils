@@ -1,0 +1,17 @@
+/home/nsheaps/src/nsheaps/.ai-agent-jack/docs/research/patcher-investigation/npm-source/package/:
+total 156
+drwxrwxr-x 3 nsheaps nsheaps   4096 Apr 25 08:17 .
+drwxrwxr-x 3 nsheaps nsheaps   4096 Apr 25 08:17 ..
+drwxrwxr-x 2 nsheaps nsheaps   4096 Apr 25 08:17 bin
+-rw-r--r-- 1 nsheaps nsheaps   4112 Oct 26  1985 cli-wrapper.cjs
+-rw-r--r-- 1 nsheaps nsheaps   6307 Oct 26  1985 install.cjs
+-rw-r--r-- 1 nsheaps nsheaps    147 Oct 26  1985 LICENSE.md
+-rw-r--r-- 1 nsheaps nsheaps   1476 Oct 26  1985 package.json
+-rw-r--r-- 1 nsheaps nsheaps   2037 Oct 26  1985 README.md
+-rw-r--r-- 1 nsheaps nsheaps 117452 Oct 26  1985 sdk-tools.d.ts
+
+/home/nsheaps/src/nsheaps/.ai-agent-jack/docs/research/patcher-investigation/npm-source/package/bin:
+total 12
+drwxrwxr-x 2 nsheaps nsheaps 4096 Apr 25 08:17 .
+drwxrwxr-x 3 nsheaps nsheaps 4096 Apr 25 08:17 ..
+-rw-r--r-- 1 nsheaps nsheaps  500 Oct 26  1985 claude.exe

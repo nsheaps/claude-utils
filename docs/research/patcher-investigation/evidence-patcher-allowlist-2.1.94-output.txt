@@ -1,0 +1,8 @@
+Source: /home/nsheaps/.local/share/mise/installs/npm-anthropic-ai-claude-code/2.1.94/lib/node_modules/@anthropic-ai/claude-code/cli.js
+Found isChannelAllowlisted => x_7
+Found function at offset 10585248
+Original function (134 chars): function x_7(q){if(!q)return!1;let{name:K,marketplace:_}=y4(q);if(!_)return!1;re...
+Replacement: function x_7(q){return!0}
+SUCCESS: Patched copy created at /home/nsheaps/.claude/cli.patched.js
+Original preserved at /home/nsheaps/.local/share/mise/installs/npm-anthropic-ai-claude-code/2.1.94/lib/node_modules/@anthropic-ai/claude-code/cli.js
+EXIT CODE: 0

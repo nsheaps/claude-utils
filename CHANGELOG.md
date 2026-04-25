@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.8](https://github.com/nsheaps/claude-utils/compare/v0.10.7...v0.10.8) (2026-04-25)
+
+### Documentation
+
+* **spec:** claude-patch-channels — iteration 5 draft ([77e07e2](https://github.com/nsheaps/claude-utils/commit/77e07e2d374cdcb11debb32472266afd11de8ea8))
+
 ## [0.10.7](https://github.com/nsheaps/claude-utils/compare/v0.10.6...v0.10.7) (2026-04-22)
 
 ### Maintenance

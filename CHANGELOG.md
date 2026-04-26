@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.11.1](https://github.com/nsheaps/claude-utils/compare/v0.11.0...v0.11.1) (2026-04-26)
+
+### Refactoring
+
+* use versioned filename instead of stamp file for patcher idempotency ([#25](https://github.com/nsheaps/claude-utils/issues/25)) ([cf02c87](https://github.com/nsheaps/claude-utils/commit/cf02c8701b68a7ee1bd4991beb56e0e47f001a19))
+
 ## [0.11.0](https://github.com/nsheaps/claude-utils/compare/v0.10.11...v0.11.0) (2026-04-26)
 
 ### Features

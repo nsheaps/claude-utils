@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.10](https://github.com/nsheaps/claude-utils/compare/v0.10.9...v0.10.10) (2026-04-26)
+
+### Bug Fixes
+
+* rewrite ELF DevChannelsDialog patch to replace entire function ([fd12250](https://github.com/nsheaps/claude-utils/commit/fd122502aaf6ae2b5b7c73a270f01ad8f57980c7))
+
 ## [0.10.9](https://github.com/nsheaps/claude-utils/compare/v0.10.8...v0.10.9) (2026-04-25)
 
 ## [0.10.8](https://github.com/nsheaps/claude-utils/compare/v0.10.7...v0.10.8) (2026-04-25)

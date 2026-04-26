@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.11.4](https://github.com/nsheaps/claude-utils/compare/v0.11.3...v0.11.4) (2026-04-26)
+
+### Bug Fixes
+
+* programmatic bytecode disable via module metadata zeroing ([#28](https://github.com/nsheaps/claude-utils/issues/28)) ([3757fb9](https://github.com/nsheaps/claude-utils/commit/3757fb9bb1c717465c53d0d0fe477c2223ec30b5))
+
 ## [0.11.3](https://github.com/nsheaps/claude-utils/compare/v0.11.2...v0.11.3) (2026-04-26)
 
 ### Bug Fixes

@@ -16,6 +16,12 @@ source "$(dirname "${BASH_SOURCE[0]}")/stdlib.sh"
 # Package version - single source of truth
 CLAUDE_UTILS_VERSION="v0.11.3"
 
+# Detect dev mode: if running from a git checkout, append +DEV
+# This ensures dev copies always re-patch (is_dev_version matches "dev")
+if [[ -d "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/.git" ]]; then
+  CLAUDE_UTILS_VERSION="${CLAUDE_UTILS_VERSION}+DEV"
+fi
+
 # Commands that only exist in claude (not happy) - always redirect to claude
 CLAUDE_ONLY_COMMANDS=("auth" "plugin")
 

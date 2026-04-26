@@ -22,6 +22,7 @@ OUTPUT_PATH=""
 DRY_RUN=false
 VERBOSE=false
 RESTORE=false
+FORCE=false
 
 # Known tested versions (add as we verify)
 TESTED_VERSIONS=("2.1.94" "2.1.113" "2.1.119")
@@ -40,6 +41,7 @@ Options:
   --output <path>   Where to write the patched copy
                     (default: ~/.claude/cli.patched.{patcher_version}-{claude_version})
   --restore         Remove the patched copy
+  --force           Always re-patch even if output file exists
   --dry-run         Show what would be patched without writing
   --verbose         Print extra debug info
   -h, --help        Show this help
@@ -62,6 +64,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   --restore)
     RESTORE=true
+    shift
+    ;;
+  --force)
+    FORCE=true
     shift
     ;;
   --dry-run)
@@ -245,7 +251,10 @@ main() {
   fi
 
   # --- idempotency check ----------------------------------------------------
-  if is_dev_version "$CLAUDE_UTILS_VERSION"; then
+  if [[ "$FORCE" == true ]]; then
+    verbose "Force flag set — always re-patching"
+    cleanup_stale_patches
+  elif is_dev_version "$CLAUDE_UTILS_VERSION"; then
     verbose "Dev patcher version ($CLAUDE_UTILS_VERSION) — always re-patching"
     cleanup_stale_patches
   elif [[ "$user_specified_output" == false && -f "$OUTPUT_PATH" && -x "$OUTPUT_PATH" ]]; then
@@ -300,6 +309,7 @@ import sys
 import re
 import os
 import stat
+import struct
 
 def main():
     args = sys.argv[1:]
@@ -395,14 +405,18 @@ def main():
     assert len(replacement) == len(original_func), \
         f"Length mismatch: replacement={len(replacement)} vs original={len(original_func)}"
 
+    # Count how many copies exist in the binary (bytecode area + source text area)
+    occurrence_count = data.count(original_func)
     if dry_run:
-        print(f"  Would replace ({len(original_func)} bytes):")
+        print(f"  Would replace ({len(original_func)} bytes, {occurrence_count} occurrence(s)):")
         print(f"    FROM: {original_func[:100].decode(errors='replace')}...")
         print(f"    TO:   {replacement[:100].decode(errors='replace')}...")
     else:
-        data = data[:start_offset] + replacement + data[end_offset:]
+        # Replace ALL occurrences — ELF binaries have copies in both
+        # the bytecode data area and the source text area
+        data = data.replace(original_func, replacement)
         patches_applied += 1
-        print(f"  Applied: {original_func[:60].decode(errors='replace')}...")
+        print(f"  Applied ({occurrence_count} occurrence(s)): {original_func[:60].decode(errors='replace')}...")
         print(f"       =>  {replacement[:60].decode(errors='replace')}...")
 
     # =========================================================================
@@ -455,35 +469,201 @@ def main():
                 new_exit += b' ' * pad
                 assert len(new_exit) == len(original_exit)
 
+                # Count occurrences (bytecode area + source text area)
+                exit_occurrence_count = data.count(original_exit)
                 if dry_run:
-                    print(f"  Would replace ({len(original_exit)} bytes):")
+                    print(f"  Would replace ({len(original_exit)} bytes, {exit_occurrence_count} occurrence(s)):")
                     print(f"    FROM: {original_exit.decode(errors='replace')}")
                     print(f"    TO:   {new_exit.decode(errors='replace')}")
                 else:
-                    data = data[:exit_case_match.start()] + new_exit + data[exit_case_match.end():]
+                    # Replace ALL occurrences — ELF binaries have copies in both
+                    # the bytecode data area and the source text area
+                    data = data.replace(original_exit, new_exit)
                     patches_applied += 1
-                    print(f"  Applied: {original_exit.decode(errors='replace')}")
+                    print(f"  Applied ({exit_occurrence_count} occurrence(s)): {original_exit.decode(errors='replace')}")
                     print(f"       =>  {new_exit.decode(errors='replace')}")
         else:
             print("  WARNING: Found dialog pattern but could not isolate exit case")
 
     # =========================================================================
-    # Patch 3: Invalidate bytecode marker so Bun falls back to source text
+    # Patch 3: DevChannelsDialog component — skip rendering, call onAccept
     # =========================================================================
-    # Bun ELF binaries embed both bytecode (in .rodata) and source text (in .bun).
-    # By default, Bun executes the pre-compiled bytecode, ignoring our source patches.
-    # Corrupting the bytecode marker forces Bun to interpret the patched source instead.
-    BYTECODE_MARKER = b"// @bun @bytecode @bun-cjs"
-    CORRUPTED_MARKER = b"// @bun @xxxxxxxx @bun-cjs"
-    marker_count = data.count(BYTECODE_MARKER)
-    if marker_count > 0:
-        data = data.replace(BYTECODE_MARKER, CORRUPTED_MARKER)
-        patches_applied += 1
-        print(f"Patch 3/3: bytecode marker invalidation -- OK ({marker_count} markers corrupted)")
+    # The dialog ALWAYS renders when --dangerously-load-development-channels is
+    # used, regardless of channel allowlist status. This patch replaces the
+    # dialog component function body to immediately invoke the onAccept callback
+    # passed via props, bypassing the interactive prompt entirely.
+    #
+    # The component is exported as DevChannelsDialog and receives props with
+    # {channels, onAccept}. We replace its body with: PARAM.onAccept();return null
+
+    dialog_export_pattern = rb'DevChannelsDialog:\(\)=>(\w+)'
+    dialog_export_match = re.search(dialog_export_pattern, data)
+
+    if not dialog_export_match:
+        print("WARNING: Could not find DevChannelsDialog export mapping")
+        print("  Patch 3 skipped — dialog component may not exist in this version")
     else:
-        # No bytecode marker = source-only binary, patches already effective
+        dialog_func_name = dialog_export_match.group(1)
+        print(f"Patch 3: DevChannelsDialog => {dialog_func_name.decode()}")
+        vprint(f"  Export found at offset {dialog_export_match.start()}")
+
+        # Find the function definition: function FUNCNAME(PARAM){...}
+        dialog_func_pattern = rb'function ' + dialog_func_name + rb'\((\w+)\)\{'
+        dialog_func_match = re.search(dialog_func_pattern, data)
+
+        if not dialog_func_match:
+            print(f"  ERROR: Could not find function definition for {dialog_func_name.decode()}")
+        else:
+            param_name = dialog_func_match.group(1)
+            dialog_start = dialog_func_match.start()
+            dialog_brace_start = dialog_func_match.end() - 1
+
+            # Brace-match to find function end
+            depth = 0
+            pos = dialog_brace_start
+            while pos < len(data):
+                byte = data[pos:pos+1]
+                if byte == b'{':
+                    depth += 1
+                elif byte == b'}':
+                    depth -= 1
+                    if depth == 0:
+                        break
+                pos += 1
+
+            if depth != 0:
+                print("  ERROR: Could not find matching closing brace")
+            else:
+                dialog_end = pos + 1
+                original_dialog = data[dialog_start:dialog_end]
+                vprint(f"  Original function ({len(original_dialog)} bytes)")
+
+                # Build replacement: function FUNCNAME(PARAM){PARAM.onAccept();return null}
+                sig = dialog_func_match.group(0)  # "function FUNCNAME(PARAM){"
+                sig_no_brace = sig[:-1]
+                body = b'{' + param_name + b'.onAccept();return null}'
+                replacement = sig_no_brace + body
+                pad = len(original_dialog) - len(replacement)
+
+                if pad < 0:
+                    print("  ERROR: Replacement is longer than original")
+                elif pad <= 4:
+                    replacement = sig_no_brace + b'{' + param_name + b'.onAccept();return null' + b' ' * pad + b'}'
+                    pad = len(original_dialog) - len(replacement)
+                    if pad != 0:
+                        replacement = sig_no_brace + b'{' + param_name + b'.onAccept();return null}' + b' ' * (len(original_dialog) - len(sig_no_brace) - len(b'{' + param_name + b'.onAccept();return null}'))
+                else:
+                    comment_len = pad - 4
+                    replacement += b'/*' + b'x' * comment_len + b'*/'
+
+                assert len(replacement) == len(original_dialog), \
+                    f"Length mismatch: replacement={len(replacement)} vs original={len(original_dialog)}"
+
+                occurrence_count = data.count(original_dialog)
+                if dry_run:
+                    print(f"  Would replace ({len(original_dialog)} bytes, {occurrence_count} occurrence(s)):")
+                    print(f"    FROM: {original_dialog[:100].decode(errors='replace')}...")
+                    print(f"    TO:   {replacement[:100].decode(errors='replace')}...")
+                else:
+                    data = data.replace(original_dialog, replacement)
+                    patches_applied += 1
+                    print(f"  Applied ({occurrence_count} occurrence(s)): {original_dialog[:60].decode(errors='replace')}...")
+                    print(f"       =>  {replacement[:60].decode(errors='replace')}...")
+
+    # =========================================================================
+    # Patch 4: Disable bytecode by zeroing module metadata pointers
+    # =========================================================================
+    # Bun ELF binaries embed both pre-compiled bytecode and source text.
+    # By default, Bun executes the bytecode, ignoring our source patches.
+    # We zero the bytecode StringPointer in each module's metadata so Bun
+    # sees length=0 and falls back to interpreting the (patched) source text.
+    #
+    # Binary layout (from end of file):
+    #   - 16-byte trailer: b"\n---- Bun! ----\n"
+    #   - 32-byte Offsets struct (immediately before trailer)
+    #   - Module entries at section_start + 8 + modules_ptr_offset
+
+    BUN_TRAILER = b"\n---- Bun! ----\n"
+    trailer_pos = data.rfind(BUN_TRAILER)
+
+    if trailer_pos == -1:
+        # No .bun section — this is a JS text binary, patches are already effective
         patches_applied += 1
-        print("Patch 3/3: bytecode marker -- not present (source-only binary, OK)")
+        print("Patch 4/4: no .bun section found (JS text binary, bytecode N/A)")
+    else:
+        vprint(f"Found .bun trailer at offset {trailer_pos}")
+
+        # Read the 32-byte Offsets struct immediately before the trailer
+        offsets_pos = trailer_pos - 32
+        offsets_data = data[offsets_pos:trailer_pos]
+        # Offsets struct: u64 + 6 * u32 = 8 + 24 = 32 bytes
+        (
+            byte_count,           # u64: total payload size
+            modules_ptr_offset,   # u32: offset from payload start to module list
+            modules_ptr_length,   # u32: length of module list in bytes
+            entry_point_id,       # u32: entry point module ID
+            compile_argv_offset,  # u32
+            compile_argv_length,  # u32
+            flags,                # u32
+        ) = struct.unpack('<QIIIIII', offsets_data)
+
+        vprint(f"Offsets struct: byte_count={byte_count}, modules_ptr_offset={modules_ptr_offset}, "
+            f"modules_ptr_length={modules_ptr_length}, entry_point_id={entry_point_id}, flags={flags:#x}")
+
+        # Layout: [payload: byte_count bytes][32-byte offsets][16-byte trailer]
+        # payload_start = offsets_pos - byte_count
+        payload_start = offsets_pos - byte_count
+        vprint(f"Payload start: {payload_start}, payload end (before offsets): {offsets_pos}")
+
+        # Module list starts at payload_start + modules_ptr_offset
+        # (payload_start is already past the u64 header)
+        modules_start = payload_start + modules_ptr_offset
+        vprint(f"Modules start: {modules_start}, modules length: {modules_ptr_length}")
+
+        # Each module entry is 52 bytes (CompiledModuleGraphFile)
+        MODULE_SIZE = 52
+        if modules_ptr_length % MODULE_SIZE != 0:
+            print(f"WARNING: modules_ptr_length ({modules_ptr_length}) is not a multiple of {MODULE_SIZE}")
+            print("  Patch 3 skipped — unexpected module entry size")
+        else:
+            num_modules = modules_ptr_length // MODULE_SIZE
+            vprint(f"Number of modules: {num_modules}")
+
+            # Convert data to a mutable bytearray for in-place zeroing
+            data = bytearray(data)
+            modules_disabled = 0
+
+            for i in range(num_modules):
+                mod_offset = modules_start + i * MODULE_SIZE
+
+                # Read bytecode StringPointer at +24: (u32 offset, u32 length)
+                bc_off, bc_len = struct.unpack_from('<II', data, mod_offset + 24)
+
+                if bc_len > 0:
+                    # Read the module name for logging
+                    name_off, name_len = struct.unpack_from('<II', data, mod_offset)
+                    name_abs = payload_start + name_off
+                    mod_name = bytes(data[name_abs:name_abs + min(name_len, 80)]).decode(errors='replace')
+                    vprint(f"  Module {i}: '{mod_name}' — bytecode len={bc_len}, zeroing pointers")
+
+                    # Zero bytecode StringPointer (+24 to +31, 8 bytes)
+                    data[mod_offset + 24 : mod_offset + 32] = b'\x00' * 8
+                    # Zero bytecode_origin_path StringPointer (+40 to +47, 8 bytes)
+                    data[mod_offset + 40 : mod_offset + 48] = b'\x00' * 8
+                    modules_disabled += 1
+                else:
+                    vprint(f"  Module {i}: no bytecode (len=0), skipping")
+
+            # Convert back to bytes
+            data = bytes(data)
+
+            if modules_disabled > 0:
+                patches_applied += 1
+                print(f"Patch 4/4: bytecode disabled for {modules_disabled} module(s) "
+                      f"(zeroed bytecode pointers in module metadata)")
+            else:
+                patches_applied += 1
+                print("Patch 4/4: no modules with bytecode found (source-only build)")
 
     # =========================================================================
     # Verify data length is unchanged

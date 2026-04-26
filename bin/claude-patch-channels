@@ -396,14 +396,18 @@ def main():
     assert len(replacement) == len(original_func), \
         f"Length mismatch: replacement={len(replacement)} vs original={len(original_func)}"
 
+    # Count how many copies exist in the binary (bytecode area + source text area)
+    occurrence_count = data.count(original_func)
     if dry_run:
-        print(f"  Would replace ({len(original_func)} bytes):")
+        print(f"  Would replace ({len(original_func)} bytes, {occurrence_count} occurrence(s)):")
         print(f"    FROM: {original_func[:100].decode(errors='replace')}...")
         print(f"    TO:   {replacement[:100].decode(errors='replace')}...")
     else:
-        data = data[:start_offset] + replacement + data[end_offset:]
+        # Replace ALL occurrences — ELF binaries have copies in both
+        # the bytecode data area and the source text area
+        data = data.replace(original_func, replacement)
         patches_applied += 1
-        print(f"  Applied: {original_func[:60].decode(errors='replace')}...")
+        print(f"  Applied ({occurrence_count} occurrence(s)): {original_func[:60].decode(errors='replace')}...")
         print(f"       =>  {replacement[:60].decode(errors='replace')}...")
 
     # =========================================================================
@@ -456,20 +460,109 @@ def main():
                 new_exit += b' ' * pad
                 assert len(new_exit) == len(original_exit)
 
+                # Count occurrences (bytecode area + source text area)
+                exit_occurrence_count = data.count(original_exit)
                 if dry_run:
-                    print(f"  Would replace ({len(original_exit)} bytes):")
+                    print(f"  Would replace ({len(original_exit)} bytes, {exit_occurrence_count} occurrence(s)):")
                     print(f"    FROM: {original_exit.decode(errors='replace')}")
                     print(f"    TO:   {new_exit.decode(errors='replace')}")
                 else:
-                    data = data[:exit_case_match.start()] + new_exit + data[exit_case_match.end():]
+                    # Replace ALL occurrences — ELF binaries have copies in both
+                    # the bytecode data area and the source text area
+                    data = data.replace(original_exit, new_exit)
                     patches_applied += 1
-                    print(f"  Applied: {original_exit.decode(errors='replace')}")
+                    print(f"  Applied ({exit_occurrence_count} occurrence(s)): {original_exit.decode(errors='replace')}")
                     print(f"       =>  {new_exit.decode(errors='replace')}")
         else:
             print("  WARNING: Found dialog pattern but could not isolate exit case")
 
     # =========================================================================
-    # Patch 3: Disable bytecode by zeroing module metadata pointers
+    # Patch 3: DevChannelsDialog component — skip rendering, call onAccept
+    # =========================================================================
+    # The dialog ALWAYS renders when --dangerously-load-development-channels is
+    # used, regardless of channel allowlist status. This patch replaces the
+    # dialog component function body to immediately invoke the onAccept callback
+    # passed via props, bypassing the interactive prompt entirely.
+    #
+    # The component is exported as DevChannelsDialog and receives props with
+    # {channels, onAccept}. We replace its body with: PARAM.onAccept();return null
+
+    dialog_export_pattern = rb'DevChannelsDialog:\(\)=>(\w+)'
+    dialog_export_match = re.search(dialog_export_pattern, data)
+
+    if not dialog_export_match:
+        print("WARNING: Could not find DevChannelsDialog export mapping")
+        print("  Patch 3 skipped — dialog component may not exist in this version")
+    else:
+        dialog_func_name = dialog_export_match.group(1)
+        print(f"Patch 3: DevChannelsDialog => {dialog_func_name.decode()}")
+        vprint(f"  Export found at offset {dialog_export_match.start()}")
+
+        # Find the function definition: function FUNCNAME(PARAM){...}
+        dialog_func_pattern = rb'function ' + dialog_func_name + rb'\((\w+)\)\{'
+        dialog_func_match = re.search(dialog_func_pattern, data)
+
+        if not dialog_func_match:
+            print(f"  ERROR: Could not find function definition for {dialog_func_name.decode()}")
+        else:
+            param_name = dialog_func_match.group(1)
+            dialog_start = dialog_func_match.start()
+            dialog_brace_start = dialog_func_match.end() - 1
+
+            # Brace-match to find function end
+            depth = 0
+            pos = dialog_brace_start
+            while pos < len(data):
+                byte = data[pos:pos+1]
+                if byte == b'{':
+                    depth += 1
+                elif byte == b'}':
+                    depth -= 1
+                    if depth == 0:
+                        break
+                pos += 1
+
+            if depth != 0:
+                print("  ERROR: Could not find matching closing brace")
+            else:
+                dialog_end = pos + 1
+                original_dialog = data[dialog_start:dialog_end]
+                vprint(f"  Original function ({len(original_dialog)} bytes)")
+
+                # Build replacement: function FUNCNAME(PARAM){PARAM.onAccept();return null}
+                sig = dialog_func_match.group(0)  # "function FUNCNAME(PARAM){"
+                sig_no_brace = sig[:-1]
+                body = b'{' + param_name + b'.onAccept();return null}'
+                replacement = sig_no_brace + body
+                pad = len(original_dialog) - len(replacement)
+
+                if pad < 0:
+                    print("  ERROR: Replacement is longer than original")
+                elif pad <= 4:
+                    replacement = sig_no_brace + b'{' + param_name + b'.onAccept();return null' + b' ' * pad + b'}'
+                    pad = len(original_dialog) - len(replacement)
+                    if pad != 0:
+                        replacement = sig_no_brace + b'{' + param_name + b'.onAccept();return null}' + b' ' * (len(original_dialog) - len(sig_no_brace) - len(b'{' + param_name + b'.onAccept();return null}'))
+                else:
+                    comment_len = pad - 4
+                    replacement += b'/*' + b'x' * comment_len + b'*/'
+
+                assert len(replacement) == len(original_dialog), \
+                    f"Length mismatch: replacement={len(replacement)} vs original={len(original_dialog)}"
+
+                occurrence_count = data.count(original_dialog)
+                if dry_run:
+                    print(f"  Would replace ({len(original_dialog)} bytes, {occurrence_count} occurrence(s)):")
+                    print(f"    FROM: {original_dialog[:100].decode(errors='replace')}...")
+                    print(f"    TO:   {replacement[:100].decode(errors='replace')}...")
+                else:
+                    data = data.replace(original_dialog, replacement)
+                    patches_applied += 1
+                    print(f"  Applied ({occurrence_count} occurrence(s)): {original_dialog[:60].decode(errors='replace')}...")
+                    print(f"       =>  {replacement[:60].decode(errors='replace')}...")
+
+    # =========================================================================
+    # Patch 4: Disable bytecode by zeroing module metadata pointers
     # =========================================================================
     # Bun ELF binaries embed both pre-compiled bytecode and source text.
     # By default, Bun executes the bytecode, ignoring our source patches.
@@ -487,7 +580,7 @@ def main():
     if trailer_pos == -1:
         # No .bun section — this is a JS text binary, patches are already effective
         patches_applied += 1
-        print("Patch 3/3: no .bun section found (JS text binary, bytecode N/A)")
+        print("Patch 4/4: no .bun section found (JS text binary, bytecode N/A)")
     else:
         vprint(f"Found .bun trailer at offset {trailer_pos}")
 
@@ -513,9 +606,9 @@ def main():
         payload_start = offsets_pos - byte_count
         vprint(f"Payload start: {payload_start}, payload end (before offsets): {offsets_pos}")
 
-        # Module list starts at payload_start + 8 + modules_ptr_offset
-        # The +8 skips a small header at the start of the payload
-        modules_start = payload_start + 8 + modules_ptr_offset
+        # Module list starts at payload_start + modules_ptr_offset
+        # (payload_start is already past the u64 header)
+        modules_start = payload_start + modules_ptr_offset
         vprint(f"Modules start: {modules_start}, modules length: {modules_ptr_length}")
 
         # Each module entry is 52 bytes (CompiledModuleGraphFile)
@@ -540,7 +633,7 @@ def main():
                 if bc_len > 0:
                     # Read the module name for logging
                     name_off, name_len = struct.unpack_from('<II', data, mod_offset)
-                    name_abs = payload_start + 8 + name_off
+                    name_abs = payload_start + name_off
                     mod_name = bytes(data[name_abs:name_abs + min(name_len, 80)]).decode(errors='replace')
                     vprint(f"  Module {i}: '{mod_name}' — bytecode len={bc_len}, zeroing pointers")
 
@@ -557,11 +650,11 @@ def main():
 
             if modules_disabled > 0:
                 patches_applied += 1
-                print(f"Patch 3/3: bytecode disabled for {modules_disabled} module(s) "
+                print(f"Patch 4/4: bytecode disabled for {modules_disabled} module(s) "
                       f"(zeroed bytecode pointers in module metadata)")
             else:
                 patches_applied += 1
-                print("Patch 3/3: no modules with bytecode found (source-only build)")
+                print("Patch 4/4: no modules with bytecode found (source-only build)")
 
     # =========================================================================
     # Verify data length is unchanged

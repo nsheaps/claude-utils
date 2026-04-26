@@ -10,44 +10,44 @@ description: >-
 ## Pre-Upgrade
 
 1. **Check binary type of new version**
-   ```bash
-   # Install but don't activate yet
-   mise install claude-code@NEW_VERSION
-   NEW_BIN=$(mise where claude-code@NEW_VERSION)/bin/claude
-   file "$(readlink -f "$NEW_BIN")"
-   ```
-   - JS bundle (v2.1.112 and below): text patcher works
-   - Bun binary (v2.1.113+): requires binary patcher
+  ```bash
+  # Install but don't activate yet
+  mise install claude-code@NEW_VERSION
+  NEW_BIN=$(mise where claude-code@NEW_VERSION)/bin/claude
+  file "$(readlink -f "$NEW_BIN")"
+  ```
+  - JS bundle (v2.1.112 and below): text patcher works
+  - Bun binary (v2.1.113+): requires binary patcher
 
 2. **Verify patchable strings exist**
-   ```bash
-   strings "$(readlink -f "$NEW_BIN")" | grep 'isChannelAllowlisted:()=>'
-   strings "$(readlink -f "$NEW_BIN")" | grep 'DevChannelsDialog:()=>'
-   ```
-   If either is missing, the minified names changed — patcher needs updating.
+  ```bash
+  strings "$(readlink -f "$NEW_BIN")" | grep 'isChannelAllowlisted:()=>'
+  strings "$(readlink -f "$NEW_BIN")" | grep 'DevChannelsDialog:()=>'
+  ```
+  If either is missing, the minified names changed — patcher needs updating.
 
 ## Patching
 
 3. **Run patcher against new version**
-   ```bash
-   # Back up first
-   cp "$(readlink -f "$NEW_BIN")" "$(readlink -f "$NEW_BIN").bak"
-   # Run patcher
-   bin/claude-patch-channels "$(readlink -f "$NEW_BIN")"
-   ```
+  ```bash
+  # Back up first
+  cp "$(readlink -f "$NEW_BIN")" "$(readlink -f "$NEW_BIN").bak"
+  # Run patcher
+  bin/claude-patch-channels "$(readlink -f "$NEW_BIN")"
+  ```
 
 4. **Validate patch** (use `patch-channels-validation` skill)
-   ```bash
-   "$NEW_BIN" --version  # must exit 0
-   ```
+  ```bash
+  "$NEW_BIN" --version  # must exit 0
+  ```
 
 ## Rollout
 
 5. **Test on secondary agent first** (Henry or Alex, not Jack)
-   ```bash
-   # Update mise.toml in the secondary agent's repo
-   # Let it run for a session to catch issues
-   ```
+  ```bash
+  # Update mise.toml in the secondary agent's repo
+  # Let it run for a session to catch issues
+  ```
 
 6. **Activate for primary agent** only after secondary confirms stable
 

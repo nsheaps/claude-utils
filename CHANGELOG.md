@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.11.2](https://github.com/nsheaps/claude-utils/compare/v0.11.1...v0.11.2) (2026-04-26)
+
+### Bug Fixes
+
+* preserve file extension in versioned output filename ([#26](https://github.com/nsheaps/claude-utils/issues/26)) ([bfa944f](https://github.com/nsheaps/claude-utils/commit/bfa944fe2292fb7824025dea3127005cb0347472))
+
 ## [0.11.1](https://github.com/nsheaps/claude-utils/compare/v0.11.0...v0.11.1) (2026-04-26)
 
 ### Refactoring

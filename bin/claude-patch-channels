@@ -475,12 +475,11 @@ def main():
     # Corrupting the bytecode marker forces Bun to interpret the patched source instead.
     BYTECODE_MARKER = b"// @bun @bytecode @bun-cjs"
     CORRUPTED_MARKER = b"// @bun @xxxxxxxx @bun-cjs"
-    marker_pos = data.find(BYTECODE_MARKER)
-    if marker_pos >= 0:
-        data = data[:marker_pos] + CORRUPTED_MARKER + data[marker_pos + len(BYTECODE_MARKER):]
+    marker_count = data.count(BYTECODE_MARKER)
+    if marker_count > 0:
+        data = data.replace(BYTECODE_MARKER, CORRUPTED_MARKER)
         patches_applied += 1
-        vprint(f"Patch 3: bytecode marker invalidated at offset 0x{marker_pos:x}")
-        print("Patch 3/3: bytecode marker invalidation -- OK")
+        print(f"Patch 3/3: bytecode marker invalidation -- OK ({marker_count} markers corrupted)")
     else:
         # No bytecode marker = source-only binary, patches already effective
         patches_applied += 1

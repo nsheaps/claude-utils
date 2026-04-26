@@ -100,11 +100,17 @@ is_dev_version() {
 versioned_output_path() {
   local patcher_ver="$1"
   local claude_ver="$2"
-  echo "$HOME/.claude/cli.patched.${patcher_ver}-${claude_ver}"
+  local bin_type="${3:-}"
+  local path="$HOME/.claude/cli.patched.${patcher_ver}-${claude_ver}"
+  # JS files need .js extension so Node.js can load them
+  if [[ "$bin_type" == "js" ]]; then
+    path="${path}.js"
+  fi
+  echo "$path"
 }
 
 cleanup_stale_patches() {
-  # Remove all cli.patched.* files (stale versioned patches)
+  # Remove all cli.patched.* files (stale versioned patches, including .js suffix)
   local stale_files
   stale_files=("$HOME"/.claude/cli.patched.*)
   for f in "${stale_files[@]}"; do
@@ -113,6 +119,9 @@ cleanup_stale_patches() {
       verbose "Removed stale patch file: $f"
     fi
   done
+  # Also clean up legacy non-versioned artifacts
+  rm -f "$HOME/.claude/cli.patched.js"
+  rm -f "$HOME/.claude/cli.patched.stamp"
 }
 
 # --- resolve binary ---------------------------------------------------------
@@ -219,6 +228,10 @@ main() {
 
   resolve_binary
 
+  # Detect binary type early — needed for versioned output path extension
+  local bin_type
+  bin_type="$(detect_binary_type)"
+
   # Get version before patching (needed for versioned filename)
   local version
   version="$(get_version "$BINARY_PATH")"
@@ -228,7 +241,7 @@ main() {
   if [[ -n "$OUTPUT_PATH" ]]; then
     user_specified_output=true
   else
-    OUTPUT_PATH="$(versioned_output_path "$CLAUDE_UTILS_VERSION" "${version:-unknown}")"
+    OUTPUT_PATH="$(versioned_output_path "$CLAUDE_UTILS_VERSION" "${version:-unknown}" "$bin_type")"
   fi
 
   # --- idempotency check ----------------------------------------------------
@@ -245,8 +258,6 @@ main() {
     fi
   fi
 
-  local bin_type
-  bin_type="$(detect_binary_type)"
   info "Binary: $BINARY_PATH"
   info "Type: $bin_type"
 

@@ -466,6 +466,25 @@ def main():
             print("  WARNING: Found dialog pattern but could not isolate exit case")
 
     # =========================================================================
+    # Patch 3: Invalidate bytecode marker so Bun falls back to source text
+    # =========================================================================
+    # Bun ELF binaries embed both bytecode (in .rodata) and source text (in .bun).
+    # By default, Bun executes the pre-compiled bytecode, ignoring our source patches.
+    # Corrupting the bytecode marker forces Bun to interpret the patched source instead.
+    BYTECODE_MARKER = b"// @bun @bytecode @bun-cjs"
+    CORRUPTED_MARKER = b"// @bun @xxxxxxxx @bun-cjs"
+    marker_pos = data.find(BYTECODE_MARKER)
+    if marker_pos >= 0:
+        data = data[:marker_pos] + CORRUPTED_MARKER + data[marker_pos + len(BYTECODE_MARKER):]
+        patches_applied += 1
+        vprint(f"Patch 3: bytecode marker invalidated at offset 0x{marker_pos:x}")
+        print("Patch 3/3: bytecode marker invalidation -- OK")
+    else:
+        # No bytecode marker = source-only binary, patches already effective
+        patches_applied += 1
+        print("Patch 3/3: bytecode marker -- not present (source-only binary, OK)")
+
+    # =========================================================================
     # Verify data length is unchanged
     # =========================================================================
     assert len(data) == original_len, \

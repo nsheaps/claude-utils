@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.11.3](https://github.com/nsheaps/claude-utils/compare/v0.11.2...v0.11.3) (2026-04-26)
+
+### Bug Fixes
+
+* corrupt ALL bytecode markers, not just the first ([#27](https://github.com/nsheaps/claude-utils/issues/27)) ([8275ee7](https://github.com/nsheaps/claude-utils/commit/8275ee705613af43cd535e22927ce78bc3e8f68b))
+
 ## [0.11.2](https://github.com/nsheaps/claude-utils/compare/v0.11.1...v0.11.2) (2026-04-26)
 
 ### Bug Fixes

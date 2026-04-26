@@ -37,7 +37,8 @@ Patch the Claude Code CLI binary to:
 
 Options:
   --binary <path>   Path to the Claude binary (default: auto-detect via `which claude`)
-  --output <path>   Where to write the patched copy (default: ~/.claude/cli.patched)
+  --output <path>   Where to write the patched copy
+                    (default: ~/.claude/cli.patched.{patcher_version}-{claude_version})
   --restore         Remove the patched copy
   --dry-run         Show what would be patched without writing
   --verbose         Print extra debug info
@@ -83,35 +84,35 @@ verbose() {
   fi
 }
 
-# --- stamp file helpers -----------------------------------------------------
-stamp_path() {
-  echo "${OUTPUT_PATH}.stamp"
-}
-
-write_stamp() {
-  local claude_version="$1"
-  local source_binary="$2"
-  local stamp
-  stamp="$(stamp_path)"
-  local tmp_stamp="${stamp}.tmp.$$"
-
-  jq -n \
-    --arg pv "$CLAUDE_UTILS_VERSION" \
-    --arg cv "$claude_version" \
-    --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    --arg sb "$source_binary" \
-    '{patcher_version: $pv, claude_code_version: $cv, patched_at: $ts, source_binary: $sb}' \
-    >"$tmp_stamp"
-  mv -f "$tmp_stamp" "$stamp"
-  verbose "Wrote stamp file: $stamp"
-}
-
-read_stamp_patcher_version() {
-  local stamp
-  stamp="$(stamp_path)"
-  if [[ -f "$stamp" ]]; then
-    jq -r '.patcher_version // empty' "$stamp" 2>/dev/null || true
+# --- version helpers --------------------------------------------------------
+is_dev_version() {
+  local ver="$1"
+  # Returns 0 (true) if version is a dev/local/dirty build or doesn't match semver
+  if [[ "$ver" =~ (dev|local|dirty) ]]; then
+    return 0
   fi
+  if ! [[ "$ver" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    return 0
+  fi
+  return 1
+}
+
+versioned_output_path() {
+  local patcher_ver="$1"
+  local claude_ver="$2"
+  echo "$HOME/.claude/cli.patched.${patcher_ver}-${claude_ver}"
+}
+
+cleanup_stale_patches() {
+  # Remove all cli.patched.* files (stale versioned patches)
+  local stale_files
+  stale_files=("$HOME"/.claude/cli.patched.*)
+  for f in "${stale_files[@]}"; do
+    if [[ -f "$f" ]]; then
+      rm -f "$f"
+      verbose "Removed stale patch file: $f"
+    fi
+  done
 }
 
 # --- resolve binary ---------------------------------------------------------
@@ -193,22 +194,19 @@ check_version() {
 
 # --- restore ----------------------------------------------------------------
 do_restore() {
-  if [[ -z "$OUTPUT_PATH" ]]; then
-    OUTPUT_PATH="$HOME/.claude/cli.patched"
-  fi
+  local found=false
+  local stale_files
+  stale_files=("$HOME"/.claude/cli.patched.*)
+  for f in "${stale_files[@]}"; do
+    if [[ -f "$f" ]]; then
+      rm -f "$f"
+      success "Removed: $f"
+      found=true
+    fi
+  done
 
-  if [[ -f "$OUTPUT_PATH" ]]; then
-    rm -f "$OUTPUT_PATH"
-    success "Removed patched copy: $OUTPUT_PATH"
-  else
-    info "No patched copy found at: $OUTPUT_PATH"
-  fi
-
-  local stamp
-  stamp="$(stamp_path)"
-  if [[ -f "$stamp" ]]; then
-    rm -f "$stamp"
-    success "Removed stamp file: $stamp"
+  if [[ "$found" == false ]]; then
+    info "No patched copies found matching ~/.claude/cli.patched.*"
   fi
   exit 0
 }
@@ -221,34 +219,30 @@ main() {
 
   resolve_binary
 
-  if [[ -z "$OUTPUT_PATH" ]]; then
-    OUTPUT_PATH="$HOME/.claude/cli.patched"
-  fi
+  # Get version before patching (needed for versioned filename)
+  local version
+  version="$(get_version "$BINARY_PATH")"
 
-  # --- patcher version stamp check ------------------------------------------
-  local stamp
-  stamp="$(stamp_path)"
-  local needs_repatch=false
-
-  if [[ ! -f "$stamp" ]]; then
-    verbose "No stamp file found — will patch"
-    needs_repatch=true
+  # --- determine output path ------------------------------------------------
+  local user_specified_output=false
+  if [[ -n "$OUTPUT_PATH" ]]; then
+    user_specified_output=true
   else
-    local old_version
-    old_version="$(read_stamp_patcher_version)"
-    if [[ "$old_version" != "$CLAUDE_UTILS_VERSION" ]]; then
-      info "Patcher version changed ($old_version -> $CLAUDE_UTILS_VERSION), re-patching..."
-      rm -f "$OUTPUT_PATH"
-      rm -f "$stamp"
-      needs_repatch=true
-    else
-      verbose "Stamp file matches current patcher version ($CLAUDE_UTILS_VERSION)"
-    fi
+    OUTPUT_PATH="$(versioned_output_path "$CLAUDE_UTILS_VERSION" "${version:-unknown}")"
   fi
 
-  if [[ "$needs_repatch" == false && -f "$OUTPUT_PATH" ]]; then
-    success "Already patched with patcher $CLAUDE_UTILS_VERSION — nothing to do"
+  # --- idempotency check ----------------------------------------------------
+  if is_dev_version "$CLAUDE_UTILS_VERSION"; then
+    verbose "Dev patcher version ($CLAUDE_UTILS_VERSION) — always re-patching"
+    cleanup_stale_patches
+  elif [[ "$user_specified_output" == false && -f "$OUTPUT_PATH" && -x "$OUTPUT_PATH" ]]; then
+    success "Already patched (version match) — $OUTPUT_PATH"
     exit 0
+  else
+    # Clean up stale versioned patches before creating new one
+    if [[ "$user_specified_output" == false ]]; then
+      cleanup_stale_patches
+    fi
   fi
 
   local bin_type
@@ -256,9 +250,6 @@ main() {
   info "Binary: $BINARY_PATH"
   info "Type: $bin_type"
 
-  # Get version before patching
-  local version
-  version="$(get_version "$BINARY_PATH")"
   if [[ -n "$version" ]]; then
     info "Claude Code version: $version"
     check_version "$version"
@@ -557,10 +548,6 @@ PYTHON_SCRIPT
     warn "Could not verify patched binary with --version"
     warn "This may be normal for ELF binaries that need specific runtime setup"
   fi
-
-  # --- write stamp file -------------------------------------------------------
-  write_stamp "${version:-unknown}" "$BINARY_PATH"
-  success "Stamp file written: $(stamp_path)"
 
   echo ""
   success "Done! Patched binary: $OUTPUT_PATH"

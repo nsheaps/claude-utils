@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.11.0](https://github.com/nsheaps/claude-utils/compare/v0.10.11...v0.11.0) (2026-04-26)
+
+### Features
+
+* add patcher version stamp for re-patch on upgrade ([#24](https://github.com/nsheaps/claude-utils/issues/24)) ([aa63b59](https://github.com/nsheaps/claude-utils/commit/aa63b595358f0dd59e1cb22f89f5e28c128119f3))
+
 ## [0.10.11](https://github.com/nsheaps/claude-utils/compare/v0.10.10...v0.10.11) (2026-04-26)
 
 ### Bug Fixes

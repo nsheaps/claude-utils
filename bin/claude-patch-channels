@@ -22,6 +22,7 @@ OUTPUT_PATH=""
 DRY_RUN=false
 VERBOSE=false
 RESTORE=false
+FORCE=false
 
 # Known tested versions (add as we verify)
 TESTED_VERSIONS=("2.1.94" "2.1.113" "2.1.119")
@@ -40,6 +41,7 @@ Options:
   --output <path>   Where to write the patched copy
                     (default: ~/.claude/cli.patched.{patcher_version}-{claude_version})
   --restore         Remove the patched copy
+  --force           Always re-patch even if output file exists
   --dry-run         Show what would be patched without writing
   --verbose         Print extra debug info
   -h, --help        Show this help
@@ -62,6 +64,10 @@ while [[ $# -gt 0 ]]; do
     ;;
   --restore)
     RESTORE=true
+    shift
+    ;;
+  --force)
+    FORCE=true
     shift
     ;;
   --dry-run)
@@ -245,7 +251,10 @@ main() {
   fi
 
   # --- idempotency check ----------------------------------------------------
-  if is_dev_version "$CLAUDE_UTILS_VERSION"; then
+  if [[ "$FORCE" == true ]]; then
+    verbose "Force flag set — always re-patching"
+    cleanup_stale_patches
+  elif is_dev_version "$CLAUDE_UTILS_VERSION"; then
     verbose "Dev patcher version ($CLAUDE_UTILS_VERSION) — always re-patching"
     cleanup_stale_patches
   elif [[ "$user_specified_output" == false && -f "$OUTPUT_PATH" && -x "$OUTPUT_PATH" ]]; then
@@ -599,7 +608,7 @@ def main():
         ) = struct.unpack('<QIIIIII', offsets_data)
 
         vprint(f"Offsets struct: byte_count={byte_count}, modules_ptr_offset={modules_ptr_offset}, "
-               f"modules_ptr_length={modules_ptr_length}, entry_point_id={entry_point_id}, flags={flags:#x}")
+            f"modules_ptr_length={modules_ptr_length}, entry_point_id={entry_point_id}, flags={flags:#x}")
 
         # Layout: [payload: byte_count bytes][32-byte offsets][16-byte trailer]
         # payload_start = offsets_pos - byte_count

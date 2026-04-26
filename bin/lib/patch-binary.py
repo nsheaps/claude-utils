@@ -70,11 +70,16 @@ def is_already_patched(source: str) -> bool:
 
 
 def is_already_patched_bytes(data: bytes) -> bool:
-    """Check if the binary already has both patches applied (binary mode)."""
-    has_patch1 = b"return!0}/*" in data
-    # Patch 2 marker: the DevChannelsDialog function body was replaced with
-    # {PARAM.onAccept()} padded with a comment block
-    has_patch2 = b".onAccept()}/*" in data
+    """Check if the binary already has both patches applied (binary mode).
+
+    Markers must be specific enough not to match unpatched source code.
+    The patched functions have a distinctive pattern: short body + long comment pad.
+    """
+    has_patch1 = b"return!0}/*xxx" in data
+    # Patch 2: the function body is {PARAM.onAccept()} followed by a long pad.
+    # The unpatched binary has .onAccept() in various contexts, so we need the
+    # distinctive pad pattern that only our patcher produces.
+    has_patch2 = b".onAccept()}/*xxx" in data
     return has_patch1 and has_patch2
 
 
@@ -549,19 +554,36 @@ def _main_elf(source_path: str, output_path: str):
     try:
         data = elf_patch_channel_allowlist(data)
         patches_applied += 1
-        print("Patch 1/2: isChannelAllowlisted (ELF) -- OK")
+        print("Patch 1/3: isChannelAllowlisted (ELF) -- OK")
     except PatchError as e:
         patches_failed.append(f"isChannelAllowlisted: {e}")
-        print(f"Patch 1/2: isChannelAllowlisted (ELF) -- FAILED: {e}", file=sys.stderr)
+        print(f"Patch 1/3: isChannelAllowlisted (ELF) -- FAILED: {e}", file=sys.stderr)
 
     # Patch 2: DevChannelsDialog
     try:
         data = elf_patch_dev_channels_dialog(data)
         patches_applied += 1
-        print("Patch 2/2: DevChannelsDialog (ELF) -- OK")
+        print("Patch 2/3: DevChannelsDialog (ELF) -- OK")
     except PatchError as e:
         patches_failed.append(f"DevChannelsDialog: {e}")
-        print(f"Patch 2/2: DevChannelsDialog (ELF) -- FAILED: {e}", file=sys.stderr)
+        print(f"Patch 2/3: DevChannelsDialog (ELF) -- FAILED: {e}", file=sys.stderr)
+
+    # Patch 3: Invalidate bytecode marker so Bun falls back to source text
+    # Bun ELF binaries embed both bytecode (in .rodata) and source text (in .bun).
+    # By default, Bun executes the pre-compiled bytecode, ignoring our source patches.
+    # Corrupting the bytecode marker forces Bun to interpret the patched source instead.
+    BYTECODE_MARKER = b"// @bun @bytecode @bun-cjs"
+    CORRUPTED_MARKER = b"// @bun @xxxxxxxx @bun-cjs"
+    marker_pos = data.find(BYTECODE_MARKER)
+    if marker_pos >= 0:
+        data = data[:marker_pos] + CORRUPTED_MARKER + data[marker_pos + len(BYTECODE_MARKER):]
+        patches_applied += 1
+        log(f"Patch 3: bytecode marker invalidated at offset 0x{marker_pos:x}")
+        print("Patch 3/3: bytecode marker invalidation -- OK")
+    else:
+        # No bytecode marker = source-only binary, patches already effective
+        patches_applied += 1
+        print("Patch 3/3: bytecode marker -- not present (source-only binary, OK)")
 
     # Enforce both-patches-required
     if patches_failed:

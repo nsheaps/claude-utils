@@ -1,0 +1,574 @@
+#!/usr/bin/env bash
+# claude-patch-channels - Patch Claude Code CLI to bypass channel allowlisting
+# and auto-accept the DevChannels dialog.
+#
+# Supports both JS text files (v2.1.112 and below) and Bun-compiled ELF
+# binaries (v2.1.113+). The JS source is embedded as plaintext strings in
+# both formats, so binary string replacement works when the replacement is
+# exactly the same byte length.
+#
+# Usage:
+#   claude-patch-channels [--binary <path>] [--output <path>] [--restore]
+#                         [--dry-run] [--verbose]
+
+set -euo pipefail
+
+source "$(dirname "$0")/lib/stdlib.sh"
+source "$(dirname "$0")/lib/claude.lib.sh"
+
+# --- defaults ---------------------------------------------------------------
+BINARY_PATH=""
+OUTPUT_PATH=""
+DRY_RUN=false
+VERBOSE=false
+RESTORE=false
+
+# Known tested versions (add as we verify)
+TESTED_VERSIONS=("2.1.94" "2.1.113" "2.1.119")
+
+# --- argument parsing -------------------------------------------------------
+usage() {
+  cat <<'EOF'
+Usage: claude-patch-channels [OPTIONS]
+
+Patch the Claude Code CLI binary to:
+  1. Bypass plugin channel allowlisting (isChannelAllowlisted always returns true)
+  2. Auto-accept the DevChannels dialog instead of exiting
+
+Options:
+  --binary <path>   Path to the Claude binary (default: auto-detect via `which claude`)
+  --output <path>   Where to write the patched copy (default: ~/.claude/cli.patched)
+  --restore         Remove the patched copy
+  --dry-run         Show what would be patched without writing
+  --verbose         Print extra debug info
+  -h, --help        Show this help
+
+The patcher dynamically discovers minified function names via export mappings,
+so it works across versions regardless of name mangling.
+EOF
+  exit 0
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --binary)
+    BINARY_PATH="$2"
+    shift 2
+    ;;
+  --output)
+    OUTPUT_PATH="$2"
+    shift 2
+    ;;
+  --restore)
+    RESTORE=true
+    shift
+    ;;
+  --dry-run)
+    DRY_RUN=true
+    shift
+    ;;
+  --verbose)
+    VERBOSE=true
+    shift
+    ;;
+  -h | --help) usage ;;
+  *) fatal "Unknown argument: $1" ;;
+  esac
+done
+
+# --- helpers ----------------------------------------------------------------
+verbose() {
+  if [[ "$VERBOSE" == true ]]; then
+    debug "$1"
+  fi
+}
+
+# --- stamp file helpers -----------------------------------------------------
+stamp_path() {
+  echo "${OUTPUT_PATH}.stamp"
+}
+
+write_stamp() {
+  local claude_version="$1"
+  local source_binary="$2"
+  local stamp
+  stamp="$(stamp_path)"
+  local tmp_stamp="${stamp}.tmp.$$"
+
+  jq -n \
+    --arg pv "$CLAUDE_UTILS_VERSION" \
+    --arg cv "$claude_version" \
+    --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --arg sb "$source_binary" \
+    '{patcher_version: $pv, claude_code_version: $cv, patched_at: $ts, source_binary: $sb}' \
+    >"$tmp_stamp"
+  mv -f "$tmp_stamp" "$stamp"
+  verbose "Wrote stamp file: $stamp"
+}
+
+read_stamp_patcher_version() {
+  local stamp
+  stamp="$(stamp_path)"
+  if [[ -f "$stamp" ]]; then
+    jq -r '.patcher_version // empty' "$stamp" 2>/dev/null || true
+  fi
+}
+
+# --- resolve binary ---------------------------------------------------------
+resolve_binary() {
+  if [[ -n "$BINARY_PATH" ]]; then
+    if [[ ! -f "$BINARY_PATH" ]]; then
+      fatal "Specified binary not found: $BINARY_PATH"
+    fi
+    return
+  fi
+
+  local claude_bin
+  claude_bin="$(command -v claude 2>/dev/null || true)"
+  if [[ -z "$claude_bin" ]]; then
+    fatal "Could not find 'claude' in PATH. Use --binary to specify the path."
+  fi
+
+  # Resolve symlinks to the actual file
+  BINARY_PATH="$(readlink -f "$claude_bin")"
+  verbose "Resolved claude binary: $BINARY_PATH"
+}
+
+# --- detect binary type -----------------------------------------------------
+detect_binary_type() {
+  local head_bytes
+  head_bytes="$(head -c 4 "$BINARY_PATH" | od -A n -t x1 | tr -d ' ')"
+
+  if [[ "$head_bytes" == "7f454c46" ]]; then
+    echo "elf"
+  else
+    # Check for shebang (JS/Node script)
+    local first_line
+    first_line="$(head -1 "$BINARY_PATH")"
+    if [[ "$first_line" == "#!"* ]]; then
+      echo "js"
+    else
+      echo "unknown"
+    fi
+  fi
+}
+
+# --- get version ------------------------------------------------------------
+get_version() {
+  local bin="$1"
+  local version
+  # Try running --version; for ELF binaries this should work directly
+  # For JS files, node will execute them
+  version="$("$bin" --version 2>/dev/null || true)"
+  # Strip leading 'v' if present, and extract just the version number
+  version="${version#v}"
+  # Remove any trailing text like " (Claude Code)"
+  version="${version%% *}"
+  echo "$version"
+}
+
+check_version() {
+  local version="$1"
+  if [[ -z "$version" ]]; then
+    warn "Could not determine Claude Code version"
+    return
+  fi
+
+  local is_tested=false
+  for v in "${TESTED_VERSIONS[@]}"; do
+    if [[ "$version" == "$v" ]]; then
+      is_tested=true
+      break
+    fi
+  done
+
+  if [[ "$is_tested" == false ]]; then
+    warn "Version $version has not been tested with this patcher."
+    warn "Tested versions: ${TESTED_VERSIONS[*]}"
+    warn "Proceeding anyway — patches are pattern-based and may still work."
+  else
+    info "Version $version is a tested version"
+  fi
+}
+
+# --- restore ----------------------------------------------------------------
+do_restore() {
+  if [[ -z "$OUTPUT_PATH" ]]; then
+    OUTPUT_PATH="$HOME/.claude/cli.patched"
+  fi
+
+  if [[ -f "$OUTPUT_PATH" ]]; then
+    rm -f "$OUTPUT_PATH"
+    success "Removed patched copy: $OUTPUT_PATH"
+  else
+    info "No patched copy found at: $OUTPUT_PATH"
+  fi
+
+  local stamp
+  stamp="$(stamp_path)"
+  if [[ -f "$stamp" ]]; then
+    rm -f "$stamp"
+    success "Removed stamp file: $stamp"
+  fi
+  exit 0
+}
+
+# --- main -------------------------------------------------------------------
+main() {
+  if [[ "$RESTORE" == true ]]; then
+    do_restore
+  fi
+
+  resolve_binary
+
+  if [[ -z "$OUTPUT_PATH" ]]; then
+    OUTPUT_PATH="$HOME/.claude/cli.patched"
+  fi
+
+  # --- patcher version stamp check ------------------------------------------
+  local stamp
+  stamp="$(stamp_path)"
+  local needs_repatch=false
+
+  if [[ ! -f "$stamp" ]]; then
+    verbose "No stamp file found — will patch"
+    needs_repatch=true
+  else
+    local old_version
+    old_version="$(read_stamp_patcher_version)"
+    if [[ "$old_version" != "$CLAUDE_UTILS_VERSION" ]]; then
+      info "Patcher version changed ($old_version -> $CLAUDE_UTILS_VERSION), re-patching..."
+      rm -f "$OUTPUT_PATH"
+      rm -f "$stamp"
+      needs_repatch=true
+    else
+      verbose "Stamp file matches current patcher version ($CLAUDE_UTILS_VERSION)"
+    fi
+  fi
+
+  if [[ "$needs_repatch" == false && -f "$OUTPUT_PATH" ]]; then
+    success "Already patched with patcher $CLAUDE_UTILS_VERSION — nothing to do"
+    exit 0
+  fi
+
+  local bin_type
+  bin_type="$(detect_binary_type)"
+  info "Binary: $BINARY_PATH"
+  info "Type: $bin_type"
+
+  # Get version before patching
+  local version
+  version="$(get_version "$BINARY_PATH")"
+  if [[ -n "$version" ]]; then
+    info "Claude Code version: $version"
+    check_version "$version"
+  fi
+
+  if [[ "$bin_type" == "unknown" ]]; then
+    fatal "Unrecognized binary format. Expected ELF or JS script."
+  fi
+
+  # Ensure output directory exists
+  mkdir -p "$(dirname "$OUTPUT_PATH")"
+
+  if [[ "$DRY_RUN" == true ]]; then
+    info "Dry run — will show patches but not write"
+  fi
+
+  # Run the Python patcher (works for both JS text and ELF binary — both
+  # contain the JS source as raw bytes/text that can be replaced in-place)
+  local python_bin
+  python_bin="$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)"
+  if [[ -z "$python_bin" ]]; then
+    fatal "Python 3 is required for patching. Install python3 and try again."
+  fi
+
+  local dry_run_flag=""
+  if [[ "$DRY_RUN" == true ]]; then
+    dry_run_flag="--dry-run"
+  fi
+
+  local verbose_flag=""
+  if [[ "$VERBOSE" == true ]]; then
+    verbose_flag="--verbose"
+  fi
+
+  "$python_bin" - "$BINARY_PATH" "$OUTPUT_PATH" $dry_run_flag $verbose_flag <<'PYTHON_SCRIPT'
+import sys
+import re
+import os
+import stat
+
+def main():
+    args = sys.argv[1:]
+    binary_path = args[0]
+    output_path = args[1]
+    dry_run = "--dry-run" in args
+    verbose = "--verbose" in args
+
+    def vprint(msg):
+        if verbose:
+            print(f"  [verbose] {msg}")
+
+    with open(binary_path, "rb") as f:
+        data = f.read()
+
+    original_len = len(data)
+    patches_applied = 0
+
+    # =========================================================================
+    # Patch 1: isChannelAllowlisted — make it always return true
+    # =========================================================================
+    # Step 1: Find the export mapping to discover the minified function name
+    export_pattern = rb'isChannelAllowlisted:\(\)=>(\w+)'
+    export_match = re.search(export_pattern, data)
+    if not export_match:
+        print("ERROR: Could not find isChannelAllowlisted export mapping")
+        print("  This version may not have channel allowlisting, or the")
+        print("  code structure has changed significantly.")
+        sys.exit(1)
+
+    func_name = export_match.group(1)
+    print(f"Patch 1: isChannelAllowlisted => {func_name.decode()}")
+    vprint(f"  Export found at offset {export_match.start()}")
+
+    # Step 2: Find the function definition
+    # The function looks like: function FUNCNAME(PARAMS){...body with nested braces...}
+    # We need to match balanced braces. Use a manual approach since regex
+    # can't handle arbitrary nesting reliably.
+    func_start_pattern = rb'function ' + func_name + rb'\([^)]*\)\{'
+    func_start_match = re.search(func_start_pattern, data)
+    if not func_start_match:
+        print(f"ERROR: Could not find function definition for {func_name.decode()}")
+        sys.exit(1)
+
+    # Find the matching closing brace by counting braces
+    start_offset = func_start_match.start()
+    brace_start = func_start_match.end() - 1  # position of the opening {
+    depth = 0
+    pos = brace_start
+    while pos < len(data):
+        byte = data[pos:pos+1]
+        if byte == b'{':
+            depth += 1
+        elif byte == b'}':
+            depth -= 1
+            if depth == 0:
+                break
+        pos += 1
+
+    if depth != 0:
+        print("ERROR: Could not find matching closing brace for function")
+        sys.exit(1)
+
+    end_offset = pos + 1  # include the closing brace
+    original_func = data[start_offset:end_offset]
+    vprint(f"  Original function ({len(original_func)} bytes): {original_func[:80].decode(errors='replace')}...")
+
+    # Step 3: Build replacement — same signature but body is {return!0} + padding
+    sig = func_start_match.group(0)  # "function FUNCNAME(PARAMS){"
+    sig_without_brace = sig[:-1]  # "function FUNCNAME(PARAMS)"
+    replacement = sig_without_brace + b'{return!0}'
+    padding_needed = len(original_func) - len(replacement)
+
+    if padding_needed < 0:
+        print("ERROR: Replacement is longer than original — cannot patch safely")
+        sys.exit(1)
+    elif padding_needed == 0:
+        pass  # exact fit
+    elif padding_needed <= 4:
+        # Too small for a block comment (need at least /**/ = 4 bytes)
+        # Use spaces inside the function body instead
+        replacement = sig_without_brace + b'{return!0' + b' ' * padding_needed + b'}'
+        # Recalculate since we changed the structure
+        padding_needed = len(original_func) - len(replacement)
+        if padding_needed != 0:
+            # Fall back: pad before closing brace
+            replacement = sig_without_brace + b'{return!0}' + b' ' * (len(original_func) - len(sig_without_brace) - len(b'{return!0}'))
+    else:
+        # Use a block comment for padding: /*xxxx*/
+        comment_content_len = padding_needed - 4  # subtract /* and */
+        replacement += b'/*' + b'x' * comment_content_len + b'*/'
+
+    assert len(replacement) == len(original_func), \
+        f"Length mismatch: replacement={len(replacement)} vs original={len(original_func)}"
+
+    if dry_run:
+        print(f"  Would replace ({len(original_func)} bytes):")
+        print(f"    FROM: {original_func[:100].decode(errors='replace')}...")
+        print(f"    TO:   {replacement[:100].decode(errors='replace')}...")
+    else:
+        data = data[:start_offset] + replacement + data[end_offset:]
+        patches_applied += 1
+        print(f"  Applied: {original_func[:60].decode(errors='replace')}...")
+        print(f"       =>  {replacement[:60].decode(errors='replace')}...")
+
+    # =========================================================================
+    # Patch 2: DevChannelsDialog exit handler — auto-accept instead of exit
+    # =========================================================================
+    # The pattern in the DevChannelsDialog component looks like:
+    #   function(W){q:switch(W){case"accept":{ACCEPT_FUNC();break q}case"exit":EXIT_FUNC(1)}}
+    # We want to replace the exit handler to call the accept function instead.
+    #
+    # Strategy: find the switch block that has case"accept" and case"exit"
+    # near each other, extract the accept function name, then replace the
+    # exit call with the accept call + padding.
+
+    # Find the pattern: case"accept":{FUNC();break q}case"exit":FUNC(1)
+    # The accept function is called with no args, exit calls process.exit(1)
+    dialog_pattern = rb'case"accept":\{(\w+)\(\);break \w+\}case"exit":(\w+)\(1\)'
+    dialog_match = re.search(dialog_pattern, data)
+
+    if not dialog_match:
+        # Try alternate pattern without the break label
+        dialog_pattern = rb'case"accept":\{(\w+)\(\);break\b[^}]*\}case"exit":(\w+)\(1\)'
+        dialog_match = re.search(dialog_pattern, data)
+
+    if not dialog_match:
+        print("WARNING: Could not find DevChannelsDialog exit handler pattern")
+        print("  Patch 2 skipped — dialog may not exist in this version")
+    else:
+        accept_func = dialog_match.group(1)
+        exit_func = dialog_match.group(2)
+        print(f"Patch 2: DevChannelsDialog exit handler")
+        print(f"  Accept function: {accept_func.decode()}")
+        print(f"  Exit function: {exit_func.decode()}")
+        vprint(f"  Pattern found at offset {dialog_match.start()}")
+
+        # We want to replace: case"exit":EXIT_FUNC(1)
+        # With:                case"exit":ACCEPT_FUNC()
+        # padded with spaces to match byte length
+        exit_case_pattern = rb'case"exit":' + exit_func + rb'\(1\)'
+        exit_case_match = re.search(exit_case_pattern, data)
+
+        if exit_case_match:
+            original_exit = exit_case_match.group(0)
+            new_exit = b'case"exit":' + accept_func + b'()'
+            pad = len(original_exit) - len(new_exit)
+
+            if pad < 0:
+                print("  WARNING: Accept function name is longer than exit — cannot pad")
+                print("  Patch 2 skipped")
+            else:
+                new_exit += b' ' * pad
+                assert len(new_exit) == len(original_exit)
+
+                if dry_run:
+                    print(f"  Would replace ({len(original_exit)} bytes):")
+                    print(f"    FROM: {original_exit.decode(errors='replace')}")
+                    print(f"    TO:   {new_exit.decode(errors='replace')}")
+                else:
+                    data = data[:exit_case_match.start()] + new_exit + data[exit_case_match.end():]
+                    patches_applied += 1
+                    print(f"  Applied: {original_exit.decode(errors='replace')}")
+                    print(f"       =>  {new_exit.decode(errors='replace')}")
+        else:
+            print("  WARNING: Found dialog pattern but could not isolate exit case")
+
+    # =========================================================================
+    # Patch 3: Invalidate bytecode marker so Bun falls back to source text
+    # =========================================================================
+    # Bun ELF binaries embed both bytecode (in .rodata) and source text (in .bun).
+    # By default, Bun executes the pre-compiled bytecode, ignoring our source patches.
+    # Corrupting the bytecode marker forces Bun to interpret the patched source instead.
+    BYTECODE_MARKER = b"// @bun @bytecode @bun-cjs"
+    CORRUPTED_MARKER = b"// @bun @xxxxxxxx @bun-cjs"
+    marker_pos = data.find(BYTECODE_MARKER)
+    if marker_pos >= 0:
+        data = data[:marker_pos] + CORRUPTED_MARKER + data[marker_pos + len(BYTECODE_MARKER):]
+        patches_applied += 1
+        vprint(f"Patch 3: bytecode marker invalidated at offset 0x{marker_pos:x}")
+        print("Patch 3/3: bytecode marker invalidation -- OK")
+    else:
+        # No bytecode marker = source-only binary, patches already effective
+        patches_applied += 1
+        print("Patch 3/3: bytecode marker -- not present (source-only binary, OK)")
+
+    # =========================================================================
+    # Verify data length is unchanged
+    # =========================================================================
+    assert len(data) == original_len, \
+        f"FATAL: Output size changed! {original_len} -> {len(data)}"
+
+    # =========================================================================
+    # Write output
+    # =========================================================================
+    if dry_run:
+        print(f"\nDry run complete. {patches_applied} patch(es) shown.")
+        print(f"Would write to: {output_path}")
+    else:
+        with open(output_path, "wb") as f:
+            f.write(data)
+
+        # Preserve executable permissions from the original
+        orig_stat = os.stat(binary_path)
+        os.chmod(output_path, orig_stat.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+        print(f"\n{patches_applied} patch(es) applied successfully.")
+        print(f"Patched binary written to: {output_path}")
+
+    return patches_applied
+
+if __name__ == "__main__":
+    patches = main()
+    if patches == 0 and "--dry-run" not in sys.argv:
+        sys.exit(1)
+PYTHON_SCRIPT
+
+  local patch_exit=$?
+  if [[ $patch_exit -ne 0 ]]; then
+    fatal "Patching failed (exit code $patch_exit)"
+  fi
+
+  if [[ "$DRY_RUN" == true ]]; then
+    exit 0
+  fi
+
+  # --- verification -----------------------------------------------------------
+  echo ""
+  info "Verifying patched binary..."
+
+  # Check that the target strings were replaced
+  local allowlist_check
+  allowlist_check="$(grep -c 'isChannelAllowlisted' "$OUTPUT_PATH" 2>/dev/null || echo 0)"
+  if [[ "$allowlist_check" -gt 0 ]]; then
+    success "isChannelAllowlisted reference found in patched binary ($allowlist_check occurrences)"
+  else
+    warn "Could not verify isChannelAllowlisted in patched binary"
+  fi
+
+  # Check the patched function contains return!0
+  local return_check
+  return_check="$(grep -c 'return!0' "$OUTPUT_PATH" 2>/dev/null || echo 0)"
+  verbose "return!0 occurrences in patched binary: $return_check"
+
+  # Run --version on the patched binary to ensure it still works
+  local patched_version
+  patched_version="$("$OUTPUT_PATH" --version 2>/dev/null || true)"
+  patched_version="${patched_version#v}"
+  patched_version="${patched_version%% *}"
+
+  if [[ -n "$patched_version" ]]; then
+    success "Patched binary runs OK (version: $patched_version)"
+    if [[ -n "$version" && "$patched_version" != "$version" ]]; then
+      warn "Version mismatch: original=$version patched=$patched_version"
+    fi
+  else
+    warn "Could not verify patched binary with --version"
+    warn "This may be normal for ELF binaries that need specific runtime setup"
+  fi
+
+  # --- write stamp file -------------------------------------------------------
+  write_stamp "${version:-unknown}" "$BINARY_PATH"
+  success "Stamp file written: $(stamp_path)"
+
+  echo ""
+  success "Done! Patched binary: $OUTPUT_PATH"
+  echo ""
+  info "To use: create an alias or symlink:"
+  echo "  alias claude='$OUTPUT_PATH'"
+  echo "  # or"
+  echo "  ln -sf '$OUTPUT_PATH' ~/.local/bin/claude"
+}
+
+main

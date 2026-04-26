@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.10.11](https://github.com/nsheaps/claude-utils/compare/v0.10.10...v0.10.11) (2026-04-26)
+
+### Bug Fixes
+
+* add bytecode marker invalidation (Patch 3) for Bun ELF binaries ([1170958](https://github.com/nsheaps/claude-utils/commit/117095801c47c00c98fd0ced2326ffc2077c8813))
+
 ## [0.10.10](https://github.com/nsheaps/claude-utils/compare/v0.10.9...v0.10.10) (2026-04-26)
 
 ### Bug Fixes

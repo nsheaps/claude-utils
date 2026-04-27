@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.0](https://github.com/nsheaps/claude-utils/compare/v0.11.4...v0.12.0) (2026-04-27)
+
+### Features
+
+* store patched binaries in ~/.agents/bin/ with claude.cli.patched prefix ([7cc4e8d](https://github.com/nsheaps/claude-utils/commit/7cc4e8d538924edb9f469d0618371363458b902d))
+
 ## [0.11.4](https://github.com/nsheaps/claude-utils/compare/v0.11.3...v0.11.4) (2026-04-26)
 
 ### Bug Fixes

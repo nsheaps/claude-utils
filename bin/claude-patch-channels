@@ -39,7 +39,7 @@ Patch the Claude Code CLI binary to:
 Options:
   --binary <path>   Path to the Claude binary (default: auto-detect via `which claude`)
   --output <path>   Where to write the patched copy
-                    (default: ~/.claude/cli.patched.{patcher_version}-{claude_version})
+                    (default: ~/.agents/bin/claude.cli.patched.{patcher_version}-{claude_version})
   --restore         Remove the patched copy
   --force           Always re-patch even if output file exists
   --dry-run         Show what would be patched without writing
@@ -107,7 +107,9 @@ versioned_output_path() {
   local patcher_ver="$1"
   local claude_ver="$2"
   local bin_type="${3:-}"
-  local path="$HOME/.claude/cli.patched.${patcher_ver}-${claude_ver}"
+  local patch_dir="$HOME/.agents/bin"
+  mkdir -p "$patch_dir"
+  local path="${patch_dir}/claude.cli.patched.${patcher_ver}-${claude_ver}"
   # JS files need .js extension so Node.js can load them
   if [[ "$bin_type" == "js" ]]; then
     path="${path}.js"
@@ -116,16 +118,21 @@ versioned_output_path() {
 }
 
 cleanup_stale_patches() {
-  # Remove all cli.patched.* files (stale versioned patches, including .js suffix)
+  # Remove all patched files from new location (~/.agents/bin/)
   local stale_files
-  stale_files=("$HOME"/.claude/cli.patched.*)
-  for f in "${stale_files[@]}"; do
-    if [[ -f "$f" ]]; then
-      rm -f "$f"
-      verbose "Removed stale patch file: $f"
-    fi
+  if [[ -d "$HOME/.agents/bin" ]]; then
+    stale_files=("$HOME"/.agents/bin/claude.cli.patched.*)
+    for f in "${stale_files[@]}"; do
+      if [[ -f "$f" ]]; then
+        rm -f "$f"
+        verbose "Removed stale patch file: $f"
+      fi
+    done
+  fi
+  # Also clean up legacy locations (~/.claude/)
+  for f in "$HOME"/.claude/cli.patched.*; do
+    [[ -f "$f" ]] && rm -f "$f" && verbose "Removed legacy patch file: $f"
   done
-  # Also clean up legacy non-versioned artifacts
   rm -f "$HOME/.claude/cli.patched.js"
   rm -f "$HOME/.claude/cli.patched.stamp"
 }
@@ -211,17 +218,28 @@ check_version() {
 do_restore() {
   local found=false
   local stale_files
-  stale_files=("$HOME"/.claude/cli.patched.*)
-  for f in "${stale_files[@]}"; do
+  # Check new location
+  if [[ -d "$HOME/.agents/bin" ]]; then
+    stale_files=("$HOME"/.agents/bin/claude.cli.patched.*)
+    for f in "${stale_files[@]}"; do
+      if [[ -f "$f" ]]; then
+        rm -f "$f"
+        success "Removed: $f"
+        found=true
+      fi
+    done
+  fi
+  # Check legacy location
+  for f in "$HOME"/.claude/cli.patched.*; do
     if [[ -f "$f" ]]; then
       rm -f "$f"
-      success "Removed: $f"
+      success "Removed legacy: $f"
       found=true
     fi
   done
 
   if [[ "$found" == false ]]; then
-    info "No patched copies found matching ~/.claude/cli.patched.*"
+    info "No patched copies found matching ~/.agents/bin/claude.cli.patched.* or ~/.claude/cli.patched.*"
   fi
   exit 0
 }

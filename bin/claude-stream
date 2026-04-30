@@ -21,7 +21,7 @@ FILE=""
 FOLLOW=1
 
 usage() {
-    cat <<EOF
+  cat <<EOF
 $PROG — pretty-print Claude Code session JSONL as a chatroom view.
 
 USAGE
@@ -53,31 +53,46 @@ OUTPUT
 EOF
 }
 
-die() { printf '%s: %s\n' "$PROG" "$*" >&2; exit 2; }
+die() {
+  printf '%s: %s\n' "$PROG" "$*" >&2
+  exit 2
+}
 
 # ---------- Argument parsing -----------------------------------------------
 
 while (($#)); do
-    case "$1" in
-        -f|--file)    FILE="${2:?--file needs a path}"; shift 2 ;;
-        --no-follow)  FOLLOW=0; shift ;;
-        -h|--help)    usage; exit 0 ;;
-        --)           shift; break ;;
-        -*)           die "unknown option: $1 (try --help)" ;;
-        *)            die "unexpected positional arg: $1 (try --help)" ;;
-    esac
+  case "$1" in
+  -f | --file)
+    FILE="${2:?--file needs a path}"
+    shift 2
+    ;;
+  --no-follow)
+    FOLLOW=0
+    shift
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  --)
+    shift
+    break
+    ;;
+  -*) die "unknown option: $1 (try --help)" ;;
+  *) die "unexpected positional arg: $1 (try --help)" ;;
+  esac
 done
 
 # Without --file we read stdin; refuse if stdin is a terminal (otherwise
 # we'd just hang waiting for the user to type JSON).
 if [[ -z "$FILE" && -t 0 ]]; then
-    usage >&2
-    die "pipe JSONL to stdin or pass --file PATH"
+  usage >&2
+  die "pipe JSONL to stdin or pass --file PATH"
 fi
 
 if [[ -n "$FILE" ]]; then
-    [[ -e "$FILE" ]] || die "file does not exist: $FILE"
-    [[ -r "$FILE" ]] || die "file is not readable: $FILE"
+  [[ -e "$FILE" ]] || die "file does not exist: $FILE"
+  [[ -r "$FILE" ]] || die "file is not readable: $FILE"
 fi
 
 # ---------- jq filter ------------------------------------------------------
@@ -201,21 +216,21 @@ W=$(tput cols 2>/dev/null || echo 100)
 # gawk and BSD awk don't need this flag.
 awk_flags=()
 if awk -W version 2>&1 | head -1 | grep -qi mawk; then
-    awk_flags+=(-W interactive)
+  awk_flags+=(-W interactive)
 fi
 
 run_pipeline() {
-    jq --unbuffered -R -r "$JQ_FILTER" \
-        | awk "${awk_flags[@]}" -v w="$W" "$AWK_FMT"
+  jq --unbuffered -R -r "$JQ_FILTER" |
+    awk "${awk_flags[@]}" -v w="$W" "$AWK_FMT"
 }
 
 if [[ -z "$FILE" ]]; then
-    # Stdin mode — jq reads our stdin directly. No `cat` middleman; cat's
-    # block buffering would stall output when the upstream writer (e.g.
-    # `tail -F`) holds the pipe open without ever sending EOF.
-    run_pipeline
+  # Stdin mode — jq reads our stdin directly. No `cat` middleman; cat's
+  # block buffering would stall output when the upstream writer (e.g.
+  # `tail -F`) holds the pipe open without ever sending EOF.
+  run_pipeline
 elif [[ $FOLLOW -eq 1 ]]; then
-    exec tail -F -- "$FILE" | run_pipeline
+  exec tail -F -- "$FILE" | run_pipeline
 else
-    exec cat -- "$FILE" | run_pipeline
+  exec cat -- "$FILE" | run_pipeline
 fi

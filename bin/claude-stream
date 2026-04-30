@@ -1,0 +1,220 @@
+#!/usr/bin/env bash
+#
+# claude-stream — pretty-print Claude Code session JSONL as a chatroom.
+#
+# Primary mode is stdin: pipe a JSONL session in and you get a colored,
+# word-wrapped chatroom view. Designed to pair with `tail -F`:
+#
+#     tail -15f session.jsonl | claude-stream
+#
+# Pass --file PATH to read directly from a file (script does the tail
+# internally). Add --no-follow to dump and exit instead of following.
+# FROM: https://claude.ai/chat/931c7bfd-30d3-4382-b811-6906ae30d467
+#
+# Part of: https://github.com/nsheaps/claude-utils
+
+set -euo pipefail
+
+PROG=${0##*/}
+FILE=""
+FOLLOW=1
+
+usage() {
+    cat <<EOF
+$PROG — pretty-print Claude Code session JSONL as a chatroom view.
+
+USAGE
+    tail -15f session.jsonl | $PROG     # primary: read JSONL from stdin
+    $PROG --file PATH                    # equivalent to: tail -F PATH | $PROG
+    $PROG --file PATH --no-follow        # dump and exit
+    $PROG --help
+
+OPTIONS
+    -f, --file PATH     Read from PATH. Without --no-follow, internally runs
+                        \`tail -F PATH\`. With stdin you control this yourself
+                        (e.g. \`tail -50f PATH | $PROG\`).
+        --no-follow     With --file, dump the file once and exit.
+    -h, --help          Show this help.
+
+OUTPUT
+    User: ...                          cyan prefix
+    Agent: ...                         green; thinking blocks rendered grey
+    ToolCall(abc123): Read(...)        yellow
+    ToolResult(abc123): ...            magenta
+    Event(type): ...                   blue, fallback for any other JSONL
+                                       record type (file-history-snapshot,
+                                       queue-operation, etc.)
+    Summary: ...                       blue, session summaries
+
+    Body wraps to terminal width with a 4-space hanging indent. Long tool
+    inputs (>300 chars) and tool results (>500 chars) are truncated with
+    an ellipsis. Malformed JSON lines are skipped with a stderr warning.
+EOF
+}
+
+die() { printf '%s: %s\n' "$PROG" "$*" >&2; exit 2; }
+
+# ---------- Argument parsing -----------------------------------------------
+
+while (($#)); do
+    case "$1" in
+        -f|--file)    FILE="${2:?--file needs a path}"; shift 2 ;;
+        --no-follow)  FOLLOW=0; shift ;;
+        -h|--help)    usage; exit 0 ;;
+        --)           shift; break ;;
+        -*)           die "unknown option: $1 (try --help)" ;;
+        *)            die "unexpected positional arg: $1 (try --help)" ;;
+    esac
+done
+
+# Without --file we read stdin; refuse if stdin is a terminal (otherwise
+# we'd just hang waiting for the user to type JSON).
+if [[ -z "$FILE" && -t 0 ]]; then
+    usage >&2
+    die "pipe JSONL to stdin or pass --file PATH"
+fi
+
+if [[ -n "$FILE" ]]; then
+    [[ -e "$FILE" ]] || die "file does not exist: $FILE"
+    [[ -r "$FILE" ]] || die "file is not readable: $FILE"
+fi
+
+# ---------- jq filter ------------------------------------------------------
+#
+# Reads each input line as a raw string (-R) so try/catch fromjson can
+# swallow malformed lines without killing the whole pipeline. Renders one
+# chatroom line per content block; falls back to Event(type) for record
+# types we don't have a custom renderer for, so nothing is silently dropped.
+
+read -r -d '' JQ_FILTER <<'JQ' || true
+def idShort: if length > 6 then .[-6:] else . end;
+def trunc($n): if (length // 0) > $n then .[0:$n] + "…" else . end;
+def stringify: if type == "string" then . else tostring end;
+
+def renderBlock:
+    if   .type == "text"      then .text
+    elif .type == "thinking"  then "<thinking>" + .thinking + "</thinking>"
+    elif .type == "tool_use"  then
+        "ToolCall(" + (.id // "?" | idShort) + "): " + (.name // "?")
+        + "(" + (.input | tostring | trunc(300)) + ")"
+    elif .type == "tool_result" then
+        "ToolResult(" + (.tool_use_id // "?" | idShort) + "): "
+        + ( ( if   (.content | type) == "string" then .content
+              elif (.content | type) == "array"  then (.content | map(.text // stringify) | join(" "))
+              else (.content | tostring) end )
+            | trunc(500) )
+    else "[" + (.type // "?") + "]"
+    end;
+
+def renderEvent:
+    if   .type == "user" then
+        if (.message.content | type) == "string"
+        then "User: " + .message.content
+        else .message.content[]?
+             | if   .type == "tool_result" then renderBlock
+               elif .type == "text"        then "User: " + .text
+               else "User: " + renderBlock end
+        end
+    elif .type == "assistant" then
+        .message.content[]?
+        | if .type == "tool_use" then renderBlock
+          else "Agent: " + renderBlock end
+    elif .type == "summary" then
+        "Summary: " + (.summary // (. | tostring) | trunc(500))
+    elif .type == "system" then
+        "System: " + (.content // .message.content // (. | tostring) | tostring | trunc(500))
+    else
+        "Event(" + (.type // "?") + "): " + (. | tostring | trunc(500))
+    end;
+
+. as $raw
+| ( try fromjson
+    catch ("[claude-stream skipped malformed line] " + ($raw | .[0:120]) | stderr | empty) )
+| renderEvent
+| gsub("\n"; " ") | gsub("\r"; "")
+JQ
+
+# ---------- awk formatter --------------------------------------------------
+#
+# Splits each chatroom line at the first ": ", colors the prefix, word-wraps
+# the body to $w columns with a 4-space hanging indent. Thinking-block
+# bodies render in grey.
+
+read -r -d '' AWK_FMT <<'AWK' || true
+BEGIN {
+    ind = "    "
+    c["User"]       = "\033[36m"   # cyan
+    c["Agent"]      = "\033[32m"   # green
+    c["ToolCall"]   = "\033[33m"   # yellow
+    c["ToolResult"] = "\033[35m"   # magenta
+    c["Event"]      = "\033[34m"   # blue
+    c["Summary"]    = "\033[34m"
+    c["System"]     = "\033[34m"
+    reset = "\033[0m"
+    grey  = "\033[90m"
+}
+function categoryOf(pre,   p) { p = index(pre, "("); return p ? substr(pre, 1, p - 1) : pre }
+{
+    sep = index($0, ": ")
+    if (!sep) { print; fflush(); next }
+    pre  = substr($0, 1, sep - 1)
+    rest = substr($0, sep + 2)
+    cat  = categoryOf(pre)
+    col  = (cat in c) ? c[cat] : ""
+    bodyColor = (substr(rest, 1, 10) == "<thinking>") ? grey : ""
+
+    printf "%s%s%s: %s", col, pre, reset, bodyColor
+
+    # Word-wrap with a hanging indent. atLineStart tracks whether we just
+    # opened a row so we know to suppress the leading space for the first
+    # word — comparing column positions can collide mid-row.
+    headLen     = length(pre) + 2
+    indentLen   = length(ind)
+    cl          = headLen
+    atLineStart = 1
+    n           = split(rest, wd, " ")
+
+    for (k = 1; k <= n; k++) {
+        l = length(wd[k])
+        if (!atLineStart && cl + l + 1 > w && cl > indentLen) {
+            printf "\n%s", ind
+            cl = indentLen
+            atLineStart = 1
+        }
+        if (atLineStart) { printf "%s", wd[k]; cl += l; atLineStart = 0 }
+        else             { printf " %s", wd[k]; cl += l + 1 }
+    }
+    printf "%s\n", (bodyColor ? reset : "")
+    fflush()    # keep streaming when stdout is a pipe
+}
+AWK
+
+# ---------- Run -------------------------------------------------------------
+
+W=$(tput cols 2>/dev/null || echo 100)
+
+# mawk (the default awk on Debian/Ubuntu) block-buffers stdin from pipes
+# regardless of fflush() on the output side. -Winteractive switches it to
+# line-buffered I/O; without this, `tail -F | claude-stream` produces no
+# output until ~4KB accumulates, which can take a long time on a quiet session.
+# gawk and BSD awk don't need this flag.
+awk_flags=()
+if awk -W version 2>&1 | head -1 | grep -qi mawk; then
+    awk_flags+=(-W interactive)
+fi
+
+run_pipeline() {
+    jq --unbuffered -R -r "$JQ_FILTER" \
+        | awk "${awk_flags[@]}" -v w="$W" "$AWK_FMT"
+}
+
+if [[ -z "$FILE" ]]; then
+    # Stdin mode — jq reads our stdin directly. No `cat` middleman; cat's
+    # block buffering would stall output when the upstream writer (e.g.
+    # `tail -F`) holds the pipe open without ever sending EOF.
+    run_pipeline
+elif [[ $FOLLOW -eq 1 ]]; then
+    exec tail -F -- "$FILE" | run_pipeline
+else
+    exec cat -- "$FILE" | run_pipeline
+fi

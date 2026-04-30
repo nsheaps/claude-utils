@@ -14,7 +14,7 @@
 source "$(dirname "${BASH_SOURCE[0]}")/stdlib.sh"
 
 # Package version - single source of truth
-CLAUDE_UTILS_VERSION="v0.12.0"
+CLAUDE_UTILS_VERSION="v0.12.1"
 
 # Detect dev mode: if running from a git checkout, append +DEV
 # This ensures dev copies always re-patch (is_dev_version matches "dev")

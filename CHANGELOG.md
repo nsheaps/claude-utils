@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.2](https://github.com/nsheaps/claude-utils/compare/v0.12.1...v0.12.2) (2026-04-30)
+
+### Bug Fixes
+
+* **claude-stream:** correct indentation to satisfy editorconfig ([#30](https://github.com/nsheaps/claude-utils/issues/30)) ([9882172](https://github.com/nsheaps/claude-utils/commit/9882172dc470f877693abdb8d66c67ce4f5142ea))
+
 ## [0.12.1](https://github.com/nsheaps/claude-utils/compare/v0.12.0...v0.12.1) (2026-04-30)
 
 ## [0.12.0](https://github.com/nsheaps/claude-utils/compare/v0.11.4...v0.12.0) (2026-04-27)

@@ -127,9 +127,9 @@ def renderEvent:
         if (.message.content | type) == "string"
         then "User: " + .message.content
         else .message.content[]?
-             | if   .type == "tool_result" then renderBlock
-               elif .type == "text"        then "User: " + .text
-               else "User: " + renderBlock end
+          | if   .type == "tool_result" then renderBlock
+            elif .type == "text"        then "User: " + .text
+            else "User: " + renderBlock end
         end
     elif .type == "assistant" then
         .message.content[]?

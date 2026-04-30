@@ -38,14 +38,14 @@ OPTIONS
     -h, --help          Show this help.
 
 OUTPUT
-    User: ...                          cyan prefix
-    Agent: ...                         green; thinking blocks rendered grey
-    ToolCall(abc123): Read(...)        yellow
-    ToolResult(abc123): ...            magenta
-    Event(type): ...                   blue, fallback for any other JSONL
-                                       record type (file-history-snapshot,
-                                       queue-operation, etc.)
-    Summary: ...                       blue, session summaries
+    User: ...                         cyan prefix
+    Agent: ...                        green; thinking blocks rendered grey
+    ToolCall(abc123): Read(...)       yellow
+    ToolResult(abc123): ...           magenta
+    Event(type): ...                  blue, fallback for any other JSONL
+                                      record type (file-history-snapshot,
+                                      queue-operation, etc.)
+    Summary: ...                      blue, session summaries
 
     Body wraps to terminal width with a 4-space hanging indent. Long tool
     inputs (>300 chars) and tool results (>500 chars) are truncated with

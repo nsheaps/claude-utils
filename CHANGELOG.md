@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.3](https://github.com/nsheaps/claude-utils/compare/v0.12.2...v0.12.3) (2026-04-30)
+
+### Maintenance
+
+* **deps:** update node.js to >=18.20.8 ([#22](https://github.com/nsheaps/claude-utils/issues/22)) ([4a8d89e](https://github.com/nsheaps/claude-utils/commit/4a8d89e547cfb04ae4cad211151fd9b0594eca24))
+
 ## [0.12.2](https://github.com/nsheaps/claude-utils/compare/v0.12.1...v0.12.2) (2026-04-30)
 
 ### Bug Fixes

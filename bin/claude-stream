@@ -10,6 +10,7 @@
 # Pass --file PATH to read directly from a file (script does the tail
 # internally). Add --no-follow to dump and exit instead of following.
 # FROM: https://claude.ai/chat/931c7bfd-30d3-4382-b811-6906ae30d467
+# TODO: also consider otel logging server instead of streaming the jsonl
 #
 # Part of: https://github.com/nsheaps/claude-utils
 

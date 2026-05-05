@@ -7,6 +7,27 @@ description: >-
 
 # Patch Channels Validation
 
+## CRITICAL: Patcher success ≠ patch effective
+
+**The patcher reporting "4 patches applied successfully" is NECESSARY but NOT SUFFICIENT.** The patcher only confirms it found and rewrote bytes at the expected pattern locations. It does NOT confirm the rewritten code actually changes runtime behavior.
+
+Failure modes where the patcher says ✅ but behavior is unchanged:
+
+- The pattern matched, but the matched function was inlined elsewhere or has duplicates the patcher didn't catch.
+- Bun's bytecode cache contains a pre-compiled copy of the original code that runs INSTEAD of the patched JS source. (This is why Patch 4 zeros bytecode pointers — but if Bun adds new cache locations, that patch can be incomplete.)
+- The patched function is still defined correctly, but a different code path (e.g., a different version of the dialog, a different allowlist check site) is what actually runs.
+- A new internal call site was added in this version that the patcher's pattern doesn't cover.
+
+**Always validate behavior, not just patcher output.** Specifically:
+1. Launch claude with `--dangerously-load-development-channels` and a non-allowlisted channel plugin.
+2. Confirm the DevChannelsDialog does NOT appear (dialog auto-accepts via the patch).
+3. Confirm the channel plugin's tools/MCP/messages actually load (allowlist patch effective).
+4. If the dialog DOES appear, or the channel plugin doesn't load — the patcher succeeded but the patch is INEFFECTIVE. Treat as a regression and investigate before marking the version tested.
+
+This is a documented historical failure: see `docs/research/patcher-investigation/` for cases where Patch 2/3 reported OK on certain versions but the dialog still appeared at runtime.
+
+Source: Handler instruction (2026-05-05): "Remember the patcher can succeed but the patch can still not successfully change the behavior."
+
 ## Quick Validation
 
 ```bash

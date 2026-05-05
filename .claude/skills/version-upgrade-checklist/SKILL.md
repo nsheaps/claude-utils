@@ -41,6 +41,17 @@ description: >-
   "$NEW_BIN" --version  # must exit 0
   ```
 
+  **Patcher success is NECESSARY but NOT SUFFICIENT.** "4 patches applied successfully" only means bytes were rewritten at the expected pattern sites — it does NOT prove behavior changed. New versions can have inlined copies, additional bytecode cache locations, new call sites, or different code paths that the patcher's pattern misses.
+
+  Behavior validation REQUIRED before marking a version tested:
+  - Launch claude with `--dangerously-load-development-channels` against a non-allowlisted plugin.
+  - Confirm the DevChannelsDialog does NOT appear (it should auto-accept).
+  - Confirm the channel plugin's tools/MCP server / messages actually load.
+
+  If patcher reports OK but the dialog appears or the plugin doesn't load: patcher succeeded, patch is INEFFECTIVE. Do NOT add the version to the tested list. Investigate (likely the minified names changed, or a new code path was added, or Bun's bytecode cache moved).
+
+  Source: Handler instruction (2026-05-05): "Remember the patcher can succeed but the patch can still not successfully change the behavior (make sure the skill says this)."
+
 ## Rollout
 
 5. **Test on secondary agent first** (Henry or Alex, not Jack)

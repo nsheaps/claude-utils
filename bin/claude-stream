@@ -112,7 +112,7 @@ def renderBlock:
     elif .type == "thinking"  then "<thinking>" + .thinking + "</thinking>"
     elif .type == "tool_use"  then
         "ToolCall(" + (.id // "?" | idShort) + "): " + (.name // "?")
-        + "(" + (.input | tostring | trunc(300)) + ")"
+        + "(" + (.input | tostring ) + ")"
     elif .type == "tool_result" then
         "ToolResult(" + (.tool_use_id // "?" | idShort) + "): "
         + ( ( if   (.content | type) == "string" then .content

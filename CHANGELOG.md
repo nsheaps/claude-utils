@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.12](https://github.com/nsheaps/claude-utils/compare/v0.12.11...v0.12.12) (2026-05-07)
+
+### Bug Fixes
+
+* **claude-stream:** stop truncating tool_use input ([#31](https://github.com/nsheaps/claude-utils/issues/31)) ([f7fb940](https://github.com/nsheaps/claude-utils/commit/f7fb940cea41c3095e3d89529d2f8b75d835aebb))
+
 ## [0.12.11](https://github.com/nsheaps/claude-utils/compare/v0.12.10...v0.12.11) (2026-05-05)
 
 ## [0.12.10](https://github.com/nsheaps/claude-utils/compare/v0.12.9...v0.12.10) (2026-05-05)

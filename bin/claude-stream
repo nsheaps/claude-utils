@@ -19,6 +19,12 @@ set -euo pipefail
 PROG=${0##*/}
 FILE=""
 FOLLOW=1
+EXIT_ON_STOP=0
+# Default stop sentinel, assembled from two fragments so the contiguous
+# value never appears as a literal in this file — claude-stream is
+# sometimes pointed at a session that is reviewing claude-utils itself,
+# and a contiguous literal here would false-trigger an early exit.
+STOP_SENTINEL='<<<CLAUDE_STREAM''-SESSION-STOP>>>'
 
 usage() {
   cat <<EOF
@@ -35,6 +41,17 @@ OPTIONS
                         \`tail -F PATH\`. With stdin you control this yourself
                         (e.g. \`tail -50f PATH | $PROG\`).
         --no-follow     With --file, dump the file once and exit.
+        --exit-on-session-stop
+                        Exit cleanly (status 0) once a JSONL line containing
+                        the stop sentinel is seen — after rendering it. Pair
+                        with a Claude Code Stop hook that prints the sentinel
+                        to stdout; the hook's output is recorded into the
+                        session JSONL, so a follow (\`tail -F\`) that would
+                        otherwise run forever ends when the session does.
+        --stop-sentinel STR
+                        Override the sentinel string matched by
+                        --exit-on-session-stop. Default is a built-in
+                        constant; CI callers should pass a run-unique value.
     -h, --help          Show this help.
 
 OUTPUT
@@ -69,6 +86,14 @@ while (($#)); do
   --no-follow)
     FOLLOW=0
     shift
+    ;;
+  --exit-on-session-stop)
+    EXIT_ON_STOP=1
+    shift
+    ;;
+  --stop-sentinel)
+    STOP_SENTINEL="${2:?--stop-sentinel needs a value}"
+    shift 2
     ;;
   -h | --help)
     usage
@@ -205,6 +230,18 @@ function categoryOf(pre,   p) { p = index(pre, "("); return p ? substr(pre, 1, p
 }
 AWK
 
+# ---------- stop detector --------------------------------------------------
+#
+# Used by --exit-on-session-stop. Passes every raw JSONL line through, then
+# exits right after a line containing the sentinel — so the downstream
+# jq | awk still render that line, then drain on EOF. Matching the raw line
+# (pre-jq) means the renderer's 500-char truncation can't hide the sentinel.
+
+read -r -d '' STOP_DETECTOR <<'AWK' || true
+{ print; fflush() }
+index($0, SENTINEL) { exit }
+AWK
+
 # ---------- Run -------------------------------------------------------------
 
 W=$(tput cols 2>/dev/null || echo 100)
@@ -220,8 +257,16 @@ if awk -W version 2>&1 | head -1 | grep -qi mawk; then
 fi
 
 run_pipeline() {
-  jq --unbuffered -R -r "$JQ_FILTER" |
-    awk "${awk_flags[@]}" -v w="$W" "$AWK_FMT"
+  if ((EXIT_ON_STOP)); then
+    # Detector first: passes lines through and exits after the sentinel,
+    # so jq | awk render it and then drain.
+    awk "${awk_flags[@]}" -v SENTINEL="$STOP_SENTINEL" "$STOP_DETECTOR" |
+      jq --unbuffered -R -r "$JQ_FILTER" |
+      awk "${awk_flags[@]}" -v w="$W" "$AWK_FMT"
+  else
+    jq --unbuffered -R -r "$JQ_FILTER" |
+      awk "${awk_flags[@]}" -v w="$W" "$AWK_FMT"
+  fi
 }
 
 if [[ -z "$FILE" ]]; then
@@ -230,7 +275,25 @@ if [[ -z "$FILE" ]]; then
   # `tail -F`) holds the pipe open without ever sending EOF.
   run_pipeline
 elif [[ $FOLLOW -eq 1 ]]; then
-  exec tail -F -- "$FILE" | run_pipeline
+  if ((EXIT_ON_STOP)); then
+    # Can't `exec`: when the detector exits on the stop sentinel it closes
+    # the pipe and `tail` dies via SIGPIPE (141). That is a clean stop, so
+    # inspect PIPESTATUS and normalize it to exit 0.
+    set +e
+    tail -F -- "$FILE" | run_pipeline
+    # Snapshot PIPESTATUS in one assignment — any later command resets it.
+    pipestatus=("${PIPESTATUS[@]}")
+    tail_st=${pipestatus[0]}
+    pipe_st=${pipestatus[1]}
+    set -e
+    if [[ $pipe_st -eq 0 && ($tail_st -eq 0 || $tail_st -eq 141) ]]; then
+      exit 0
+    fi
+    [[ $pipe_st -ne 0 ]] && exit "$pipe_st"
+    exit "$tail_st"
+  else
+    exec tail -F -- "$FILE" | run_pipeline
+  fi
 else
   exec cat -- "$FILE" | run_pipeline
 fi

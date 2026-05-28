@@ -354,41 +354,94 @@ N_P=${#PRUNED[@]}
 N_PF=${#PRUNE_FAILED[@]}
 N_W=${#INSTALL_WARN[@]}
 
+# render_tree: read `name@mp [scope] rest` lines on stdin, group by marketplace,
+# sort rows (scope, name, rest), emit `tree(1)`-styled output with globally
+# aligned scope+name columns across the whole section.
+render_tree() {
+  local title="$1"
+  awk -v title="$title" '
+  {
+    line = $0
+    sub(/^[[:space:]]*-[[:space:]]+/, "", line)
+    if (line == "") next
+    ipos = index(line, " [")
+    if (ipos == 0) { print line; next }
+    nm = substr(line, 1, ipos - 1)
+    rest = substr(line, ipos + 2)
+    cpos = index(rest, "]")
+    if (cpos == 0) { print line; next }
+    scope = substr(rest, 1, cpos - 1)
+    after = substr(rest, cpos + 1)
+    sub(/^[[:space:]]+/, "", after)
+    apos = index(nm, "@")
+    if (apos == 0) { name = nm; mp = "(no marketplace)" } else {
+      name = substr(nm, 1, apos - 1)
+      mp = substr(nm, apos + 1)
+    }
+    n++
+    name_a[n] = name; mp_a[n] = mp; scope_a[n] = scope; ver_a[n] = after
+    if (length(scope) > scope_w) scope_w = length(scope)
+    if (length(name)  > name_w)  name_w  = length(name)
+    mps_seen[mp] = 1
+  }
+  END {
+    if (n == 0) exit
+    print title
+    m = 0; for (k in mps_seen) mps[++m] = k
+    for (i = 1; i <= m; i++) for (j = i + 1; j <= m; j++) if (mps[i] > mps[j]) { t = mps[i]; mps[i] = mps[j]; mps[j] = t }
+    for (mi = 1; mi <= m; mi++) {
+      cur_mp = mps[mi]
+      last_mp = (mi == m)
+      mp_branch  = last_mp ? "└── " : "├── "
+      mp_indent  = last_mp ? "    " : "│   "
+      print mp_branch cur_mp "/"
+      r = 0
+      for (i = 1; i <= n; i++) if (mp_a[i] == cur_mp) {
+        r++
+        keys[r] = sprintf("%s\x01%s\x01%s\x01%06d", scope_a[i], name_a[i], ver_a[i], i)
+      }
+      for (i = 1; i <= r; i++) for (j = i + 1; j <= r; j++) if (keys[i] > keys[j]) { t = keys[i]; keys[i] = keys[j]; keys[j] = t }
+      for (i = 1; i <= r; i++) {
+        split(keys[i], parts, "\x01")
+        idx = parts[4] + 0
+        last_row = (i == r)
+        row_branch = last_row ? "└── " : "├── "
+        printf "%s%s[%-*s]  %-*s  %s\n", mp_indent, row_branch, scope_w, scope_a[idx], name_w, name_a[idx], ver_a[idx]
+      }
+      delete keys
+    }
+  }
+  '
+}
+
 if [[ $N_I -eq 0 && $N_U -eq 0 && $N_F -eq 0 && $N_P -eq 0 && $N_PF -eq 0 && $N_W -eq 0 ]]; then
   echo "All $TOTAL enabled plugins are up to date."
 else
   echo "Processed $TOTAL enabled, ${#PRUNED[@]} pruned: $N_I installed, $N_U updated, $N_OK already current, $N_P pruned, $N_F install-failed, $N_PF prune-failed, $N_W install-warn."
   echo
   if [[ $N_I -gt 0 ]]; then
-    echo "Installed ($N_I):"
-    printf '  - %s\n' "${INSTALLED[@]}"
+    printf '%s\n' "${INSTALLED[@]}" | render_tree "Installed ($N_I):"
   fi
   if [[ $N_U -gt 0 ]]; then
-    echo "Updated ($N_U):"
-    printf '  - %s\n' "${UPDATED[@]}"
+    printf '%s\n' "${UPDATED[@]}" | render_tree "Updated ($N_U):"
   fi
   if [[ $N_P -gt 0 ]]; then
-    echo "Pruned ($N_P):"
-    printf '  - %s\n' "${PRUNED[@]}"
+    printf '%s\n' "${PRUNED[@]}" | render_tree "Pruned ($N_P):"
   fi
   if [[ $N_F -gt 0 ]]; then
-    echo "Install failed ($N_F):"
-    printf '  - %s\n' "${FAILED[@]}"
+    printf '%s\n' "${FAILED[@]}" | render_tree "Install failed ($N_F):"
   fi
   if [[ $N_PF -gt 0 ]]; then
-    echo "Prune failed ($N_PF):"
-    printf '  - %s\n' "${PRUNE_FAILED[@]}"
+    printf '%s\n' "${PRUNE_FAILED[@]}" | render_tree "Prune failed ($N_PF):"
   fi
   if [[ $N_W -gt 0 ]]; then
-    echo "Install warnings ($N_W) — plugin already installed but claude refresh returned non-zero:"
-    printf '  - %s\n' "${INSTALL_WARN[@]}"
+    printf '%s\n' "${INSTALL_WARN[@]}" | render_tree "Install warnings ($N_W) — plugin already installed but claude refresh returned non-zero:"
   fi
 fi
 
 if [[ $VERBOSE -eq 1 && $N_OK -gt 0 ]]; then
   echo
-  echo "Up to date ($N_OK):"
-  printf '  - %s\n' "${UP_TO_DATE[@]}"
+  printf '%s\n' "${UP_TO_DATE[@]}" | render_tree "Up to date ($N_OK):"
 fi
 
 if [[ $N_I -gt 0 || $N_U -gt 0 || $N_P -gt 0 ]]; then

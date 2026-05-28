@@ -31,9 +31,16 @@ USER_CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 PARALLEL="${INSTALL_PLUGINS_PARALLEL:-4}"  # 8 hit concurrency bugs writing installed_plugins.json; 4 is safe
 INSTALLED_FILE="$USER_CFG/plugins/installed_plugins.json"
 
-# Union enabledPlugins across all available settings files (user + project,
-# regular + .local), so plugins enabled only at user scope are honored too.
-# Order matches claude's load order; values are OR'd (any file with `true` wins).
+# Per-file scope: which scope to install at if the file enables a plugin.
+# This is the authoritative source of scope — if the user enabled a plugin in
+# user settings, install at user scope; project file → project scope. Falling
+# back to installed_plugins.json scope was wrong (it's a result, not a source).
+declare -A FILE_SCOPE=(
+  ["$USER_CFG/settings.json"]="user"
+  ["$USER_CFG/settings.local.json"]="user"
+  ["$REPO_DIR/.claude/settings.json"]="project"
+  ["$REPO_DIR/.claude/settings.local.json"]="project"
+)
 SETTINGS_FILES=(
   "$USER_CFG/settings.json"
   "$USER_CFG/settings.local.json"
@@ -62,26 +69,26 @@ while IFS=$'\t' read -r id scope ver ts; do
   BEFORE_SCOPES["$id"]="${BEFORE_SCOPES[$id]:-}$scope "
 done < <(snapshot)
 
-# enabledPlugins: keys where value === true in ANY settings file (union).
-declare -A ENABLED_SET
+# enabledPlugins: read in load order. Project files override user files; for
+# each id, the LAST file that sets it true wins (matches claude's load order
+# where project settings override user settings).
+declare -A ENABLED_SET ENABLED_SCOPE
 for f in "${SETTINGS_FILES[@]}"; do
   [[ -f "$f" ]] || continue
+  scope="${FILE_SCOPE[$f]}"
   while IFS= read -r id; do
-    [[ -n "$id" ]] && ENABLED_SET["$id"]=1
+    [[ -z "$id" ]] && continue
+    ENABLED_SET["$id"]=1
+    ENABLED_SCOPE["$id"]="$scope"
   done < <(jq -r '.enabledPlugins // {} | to_entries[] | select(.value == true) | .key' "$f" 2>/dev/null)
 done
 ENABLED=()
 for id in "${!ENABLED_SET[@]}"; do ENABLED+=("$id"); done
 
-# For each enabled plugin, pick a scope to install at — prefer existing project,
-# else existing user, else empty (let `claude plugin install` pick its own default
-# for brand-new plugins instead of forcing project).
+# Scope for each enabled plugin comes from WHERE it was enabled (settings file →
+# scope), not from where it happens to be installed.
 pick_scope() {
-  local id="$1"
-  local scopes="${BEFORE_SCOPES[$id]:-}"
-  [[ "$scopes" == *"project"* ]] && { echo "project"; return; }
-  [[ "$scopes" == *"user"*    ]] && { echo "user";    return; }
-  echo ""  # unknown — caller omits --scope
+  echo "${ENABLED_SCOPE[$1]}"
 }
 
 # Build install plan: "id\tscope" lines (scope may be empty for new plugins).
@@ -112,29 +119,34 @@ fi
 # Per-plugin stderr capture dir — so claude's actual error survives instead of
 # being swallowed by `>/dev/null 2>&1`. Surfaced in the report at the end.
 STDERR_DIR=$(mktemp -d)
-export STDERR_DIR
-
-sanitize() { printf '%s' "$1" | tr '/@:' '_'; }
-export -f sanitize
+FAIL_INSTALL_LOG="$STDERR_DIR/_FAIL_INSTALL.tsv"
+FAIL_PRUNE_LOG="$STDERR_DIR/_FAIL_PRUNE.tsv"
+: > "$FAIL_INSTALL_LOG"
+: > "$FAIL_PRUNE_LOG"
+export STDERR_DIR FAIL_INSTALL_LOG FAIL_PRUNE_LOG
 
 # Run installs in parallel. Empty scope ($1) means omit --scope (let claude decide).
+# Inline the id-sanitize (tr /@: _) since sh -c subshells don't inherit bash functions.
 xargs -P "$PARALLEL" -L1 sh -c '
-  ef="$STDERR_DIR/install__$(sanitize "$0")__${1:-default}.err"
+  sid=$(printf %s "$0" | tr "/@:" "___")
+  ef="$STDERR_DIR/install__${sid}__${1:-default}.err"
+  rc=0
   if [ -n "$1" ]; then
     claude plugin install "$0" --scope "$1" >/dev/null 2>"$ef" || rc=$?
   else
     claude plugin install "$0" >/dev/null 2>"$ef" || rc=$?
   fi
-  if [ "${rc:-0}" != "0" ]; then
-    printf "FAIL_INSTALL\t%s\t%s\t%s\n" "$0" "${1:-default}" "$ef" >&2
+  if [ "$rc" -ne 0 ]; then
+    printf "%s\t%s\t%s\n" "$0" "${1:-default}" "$ef" >> "$FAIL_INSTALL_LOG"
   fi
 ' < "$INSTALL_PLAN_FILE"
 
 if [[ -s "$PRUNE_PLAN_FILE" ]]; then
   xargs -P "$PARALLEL" -L1 sh -c '
-    ef="$STDERR_DIR/uninstall__$(sanitize "$0")__${1}.err"
+    sid=$(printf %s "$0" | tr "/@:" "___")
+    ef="$STDERR_DIR/uninstall__${sid}__${1}.err"
     if ! claude plugin uninstall "$0" --scope "$1" >/dev/null 2>"$ef"; then
-      printf "FAIL_PRUNE\t%s\t%s\t%s\n" "$0" "$1" "$ef" >&2
+      printf "%s\t%s\t%s\n" "$0" "$1" "$ef" >> "$FAIL_PRUNE_LOG"
     fi
   ' < "$PRUNE_PLAN_FILE"
 fi
@@ -152,7 +164,7 @@ INSTALLED=()
 UPDATED=()
 UP_TO_DATE=()
 FAILED=()
-sanitize_local() { printf '%s' "$1" | tr '/@:' '_'; }
+sanitize_local() { printf '%s' "$1" | tr '/@:' '___'; }
 brief_err() {
   local f="$1"
   if [[ -s "$f" ]]; then
@@ -206,6 +218,29 @@ if [[ -s "$PRUNE_PLAN_FILE" ]]; then
   done < "$PRUNE_PLAN_FILE"
 fi
 
+# INSTALL_WARN: claude install returned non-zero, but plugin IS present in
+# AFTER snapshot — so it's installed but refresh/update failed (usually a stale
+# marketplace cache or plugin no longer in marketplace).
+INSTALL_WARN=()
+if [[ -s "$FAIL_INSTALL_LOG" ]]; then
+  while IFS=$'\t' read -r id scope ef; do
+    [[ -z "$id" ]] && continue
+    key="$id|$scope"
+    # If snapshot has it (any scope when scope was 'default'), classify as warn.
+    has_after=0
+    if [[ "$scope" == "default" ]]; then
+      for k in "${!AFTER_VER[@]}"; do
+        [[ "${k%|*}" == "$id" ]] && { has_after=1; break; }
+      done
+    else
+      [[ -n "${AFTER_VER[$key]:-}" ]] && has_after=1
+    fi
+    if [[ "$has_after" -eq 1 ]]; then
+      INSTALL_WARN+=("$id [$scope] — $(brief_err "$ef")")
+    fi
+  done < "$FAIL_INSTALL_LOG"
+fi
+
 rm -f "$INSTALL_PLAN_FILE" "$PRUNE_PLAN_FILE"
 
 # Report.
@@ -216,11 +251,12 @@ N_OK=${#UP_TO_DATE[@]}
 N_F=${#FAILED[@]}
 N_P=${#PRUNED[@]}
 N_PF=${#PRUNE_FAILED[@]}
+N_W=${#INSTALL_WARN[@]}
 
-if [[ $N_I -eq 0 && $N_U -eq 0 && $N_F -eq 0 && $N_P -eq 0 && $N_PF -eq 0 ]]; then
+if [[ $N_I -eq 0 && $N_U -eq 0 && $N_F -eq 0 && $N_P -eq 0 && $N_PF -eq 0 && $N_W -eq 0 ]]; then
   echo "All $TOTAL enabled plugins are up to date."
 else
-  echo "Processed $TOTAL enabled, ${#PRUNED[@]} pruned: $N_I installed, $N_U updated, $N_OK already current, $N_P pruned, $N_F install-failed, $N_PF prune-failed."
+  echo "Processed $TOTAL enabled, ${#PRUNED[@]} pruned: $N_I installed, $N_U updated, $N_OK already current, $N_P pruned, $N_F install-failed, $N_PF prune-failed, $N_W install-warn."
   echo
   if [[ $N_I -gt 0 ]]; then
     echo "Installed ($N_I):"
@@ -241,6 +277,10 @@ else
   if [[ $N_PF -gt 0 ]]; then
     echo "Prune failed ($N_PF):"
     printf '  - %s\n' "${PRUNE_FAILED[@]}"
+  fi
+  if [[ $N_W -gt 0 ]]; then
+    echo "Install warnings ($N_W) — plugin already installed but claude refresh returned non-zero:"
+    printf '  - %s\n' "${INSTALL_WARN[@]}"
   fi
 fi
 

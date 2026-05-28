@@ -32,10 +32,17 @@ for arg in "$@"; do
   esac
 done
 
-REPO_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
+REPO_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
 USER_CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 PARALLEL="${INSTALL_PLUGINS_PARALLEL:-4}" # 8 hit concurrency bugs writing installed_plugins.json; 4 is safe
-INSTALLED_FILE="$USER_CFG/plugins/installed_plugins.json"
+
+# installed_plugins.json lives at user scope AND (optionally) project scope.
+# Each entry's `.scope` field SHOULD match which file it lives in (user→user,
+# project→project). Reality: claude can leave stale `scope:project` rows in the
+# user file that belong to OTHER projects. We treat each file as authoritative
+# only for its own scope and skip orphan rows.
+USER_INSTALLED_FILE="$USER_CFG/plugins/installed_plugins.json"
+PROJ_INSTALLED_FILE="$REPO_DIR/.claude/plugins/installed_plugins.json"
 
 # Per-file scope: which scope to install at if the file enables a plugin.
 # This is the authoritative source of scope — if the user enabled a plugin in
@@ -58,20 +65,87 @@ SETTINGS_FILES=(
   exit 1
 }
 
-# Refresh marketplace manifests (cheap; updates pinned commits).
-claude plugin marketplace update >/dev/null 2>&1 || true
+# Refresh ALL marketplaces. Without a name `marketplace update` is a noop on
+# recent claude, so enumerate each marketplace from settings (user + project)
+# and refresh by name. Bounded parallel — marketplace fetches are short.
+# Auto-register any marketplaces declared in `extraKnownMarketplaces` that
+# aren't yet in `claude plugin marketplace list`. The CLI doesn't auto-add from
+# settings.json — without this, `claude plugin install foo@bar` fails because
+# the `bar` marketplace was never registered.
+register_extra_marketplaces() {
+  local f known have_list mp src
+  # Already-registered marketplace names.
+  have_list="$(claude plugin marketplace list 2>/dev/null | awk '/^[[:space:]]*[❯>][[:space:]]*/ {print $2}')"
+  for f in "${SETTINGS_FILES[@]}"; do
+    [[ -f "$f" ]] || continue
+    # Emit "name<TAB>source-json" rows for each extraKnownMarketplaces entry.
+    while IFS=$'\t' read -r mp src; do
+      [[ -z "$mp" ]] && continue
+      grep -Fxq "$mp" <<<"$have_list" && continue
+      # Resolve relative directory paths against the settings file's dir.
+      local src_dir; src_dir="$(dirname "$f")"
+      local source_arg
+      source_arg="$(jq -r --arg base "$src_dir" '
+        if .source == "directory" then
+          (.path | if startswith("/") then . else "\($base)/\(.)" end)
+        elif .source == "github" then
+          ("github:\(.owner)/\(.repo)")
+        elif .source == "url" then
+          .url
+        else
+          empty
+        end
+      ' <<<"$src")"
+      [[ -z "$source_arg" ]] && continue
+      claude plugin marketplace add "$source_arg" >/dev/null 2>&1 || true
+      have_list="${have_list}"$'\n'"$mp"
+    done < <(jq -r '.extraKnownMarketplaces // {} | to_entries[] | "\(.key)\t\(.value.source)"' "$f" 2>/dev/null)
+  done
+}
 
-# Snapshot: emit "id\tscope\tversion\tlastUpdated" per (id, scope) entry.
-# Reads installed_plugins.json's nested .plugins[id][] structure.
+# Refresh ALL marketplaces referenced by enabled plugins. `claude plugin
+# marketplace update` without a name is a noop on recent claude — enumerate
+# names from enabledPlugins keys and refresh each.
+# shellcheck disable=SC2016  # $1 in the trailing xargs sh -c body is deliberately expanded by the inner sh, not by the parent
+refresh_marketplaces() {
+  local -A SEEN=()
+  local f mp
+  for f in "${SETTINGS_FILES[@]}"; do
+    [[ -f "$f" ]] || continue
+    while IFS= read -r mp; do
+      [[ -z "$mp" ]] && continue
+      [[ -n "${SEEN[$mp]:-}" ]] && continue
+      SEEN["$mp"]=1
+      printf '%s\n' "$mp"
+    done < <(jq -r '.enabledPlugins // {} | keys[] | split("@")[1] // empty' "$f" 2>/dev/null)
+  done | xargs -I{} -P "$PARALLEL" sh -c 'claude plugin marketplace update "$1" >/dev/null 2>&1 || true' _ {}
+}
+
+register_extra_marketplaces
+refresh_marketplaces
+
+# Snapshot: emit "id\tscope\tversion\tlastUpdated\tsource" rows.
+# `source` = "user" if the row came from the user-scope installed_plugins.json,
+# "project" if it came from this repo's project-scope file. We only trust rows
+# whose `.scope` matches their source-file (others are stale state from another
+# project — skip to avoid uninstalling something not ours to manage).
 snapshot() {
-  if [[ -f "$INSTALLED_FILE" ]]; then
-    jq -r '.plugins | to_entries[] | .key as $id | .value[] | "\($id)\t\(.scope)\t\(.version // "")\t\(.lastUpdated // "")"' "$INSTALLED_FILE" 2>/dev/null
-  fi
+  local f source
+  for spec in "$USER_INSTALLED_FILE:user" "$PROJ_INSTALLED_FILE:project"; do
+    f="${spec%:*}"
+    source="${spec##*:}"
+    [[ -f "$f" ]] || continue
+    jq -r --arg src "$source" '
+      .plugins | to_entries[] | .key as $id | .value[]
+      | select(.scope == $src)
+      | "\($id)\t\(.scope)\t\(.version // "")\t\(.lastUpdated // "")\t\($src)"
+    ' "$f" 2>/dev/null
+  done
 }
 
 # Maps keyed by "id|scope".
 declare -A BEFORE_VER BEFORE_TS BEFORE_SCOPES
-while IFS=$'\t' read -r id scope ver ts; do
+while IFS=$'\t' read -r id scope ver ts _src; do
   [[ -z "$id" ]] && continue
   BEFORE_VER["$id|$scope"]="$ver"
   BEFORE_TS["$id|$scope"]="$ts"
@@ -164,7 +238,7 @@ fi
 
 # Snapshot AFTER.
 declare -A AFTER_VER AFTER_TS
-while IFS=$'\t' read -r id scope ver ts; do
+while IFS=$'\t' read -r id scope ver ts _src; do
   [[ -z "$id" ]] && continue
   AFTER_VER["$id|$scope"]="$ver"
   AFTER_TS["$id|$scope"]="$ts"

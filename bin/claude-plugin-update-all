@@ -127,6 +127,7 @@ export STDERR_DIR FAIL_INSTALL_LOG FAIL_PRUNE_LOG
 
 # Run installs in parallel. Empty scope ($1) means omit --scope (let claude decide).
 # Inline the id-sanitize (tr /@: _) since sh -c subshells don't inherit bash functions.
+# shellcheck disable=SC2016  # $-vars are deliberately expanded by the inner sh -c, not by the parent bash
 xargs -P "$PARALLEL" -L1 sh -c '
   sid=$(printf %s "$0" | tr "/@:" "___")
   ef="$STDERR_DIR/install__${sid}__${1:-default}.err"
@@ -142,6 +143,7 @@ xargs -P "$PARALLEL" -L1 sh -c '
 ' < "$INSTALL_PLAN_FILE"
 
 if [[ -s "$PRUNE_PLAN_FILE" ]]; then
+  # shellcheck disable=SC2016  # $-vars are deliberately expanded by the inner sh -c, not by the parent bash
   xargs -P "$PARALLEL" -L1 sh -c '
     sid=$(printf %s "$0" | tr "/@:" "___")
     ef="$STDERR_DIR/uninstall__${sid}__${1}.err"

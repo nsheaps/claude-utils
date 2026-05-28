@@ -184,6 +184,12 @@ done
 ENABLED=()
 for id in "${!ENABLED_SET[@]}"; do ENABLED+=("$id"); done
 
+# Cleanup all mktemps on exit (including early-exit via set -e). Set EARLY —
+# before any mktemp so a failed allocation later still triggers cleanup of
+# whatever has already been created. The `${VAR:-}` guards handle the case
+# where a var isn't set yet.
+trap 'rm -rf "${STDERR_DIR:-}" "${INSTALL_PLAN_FILE:-}" "${PRUNE_PLAN_FILE:-}"' EXIT
+
 # Scope for each enabled plugin comes from WHERE it was enabled (settings file →
 # scope), not from where it happens to be installed.
 # Build install plan: "id\tscope" lines (scope may be empty for new plugins).
@@ -221,9 +227,6 @@ FAIL_PRUNE_LOG="$STDERR_DIR/_FAIL_PRUNE.tsv"
 mkdir -p "$FAIL_INSTALL_DIR" "$FAIL_PRUNE_DIR"
 export STDERR_DIR FAIL_INSTALL_DIR FAIL_PRUNE_DIR
 
-# Cleanup all mktemps on exit (including early-exit via set -e).
-trap 'rm -rf "$STDERR_DIR" "${INSTALL_PLAN_FILE:-}" "${PRUNE_PLAN_FILE:-}"' EXIT
-
 # Run installs in parallel. Empty scope ($1) means omit --scope (let claude decide).
 # Inline the id-sanitize (tr /@: _) since sh -c subshells don't inherit bash functions.
 # Per-plugin failure files (written into $FAIL_INSTALL_DIR) are concatenated to
@@ -245,8 +248,8 @@ xargs -P "$PARALLEL" -L1 sh -c '
 ' <"$INSTALL_PLAN_FILE"
 
 # Concat per-plugin rows into aggregate log (single-writer, safe).
-find "$FAIL_INSTALL_DIR" -type f -name '*.row' -print0 2>/dev/null \
-  | xargs -0 cat 2>/dev/null >"$FAIL_INSTALL_LOG" || : >"$FAIL_INSTALL_LOG"
+find "$FAIL_INSTALL_DIR" -type f -name '*.row' -print0 2>/dev/null |
+  xargs -0 cat 2>/dev/null >"$FAIL_INSTALL_LOG" || : >"$FAIL_INSTALL_LOG"
 
 if [[ -s "$PRUNE_PLAN_FILE" ]]; then
   # shellcheck disable=SC2016  # $-vars are deliberately expanded by the inner sh -c, not by the parent bash
@@ -257,8 +260,8 @@ if [[ -s "$PRUNE_PLAN_FILE" ]]; then
       printf "%s\t%s\t%s\n" "$0" "$1" "$ef" > "$FAIL_PRUNE_DIR/${sid}__${1}.row"
     fi
   ' <"$PRUNE_PLAN_FILE"
-  find "$FAIL_PRUNE_DIR" -type f -name '*.row' -print0 2>/dev/null \
-    | xargs -0 cat 2>/dev/null >"$FAIL_PRUNE_LOG" || : >"$FAIL_PRUNE_LOG"
+  find "$FAIL_PRUNE_DIR" -type f -name '*.row' -print0 2>/dev/null |
+    xargs -0 cat 2>/dev/null >"$FAIL_PRUNE_LOG" || : >"$FAIL_PRUNE_LOG"
 else
   : >"$FAIL_PRUNE_LOG"
 fi

@@ -83,7 +83,8 @@ register_extra_marketplaces() {
       [[ -z "$mp" ]] && continue
       grep -Fxq "$mp" <<<"$have_list" && continue
       # Resolve relative directory paths against the settings file's dir.
-      local src_dir; src_dir="$(dirname "$f")"
+      local src_dir
+      src_dir="$(dirname "$f")"
       local source_arg
       source_arg="$(jq -r --arg base "$src_dir" '
         if .source == "directory" then
@@ -124,28 +125,34 @@ refresh_marketplaces() {
 register_extra_marketplaces
 refresh_marketplaces
 
-# Snapshot: emit "id\tscope\tversion\tlastUpdated\tsource" rows.
-# `source` = "user" if the row came from the user-scope installed_plugins.json,
-# "project" if it came from this repo's project-scope file. We only trust rows
-# whose `.scope` matches their source-file (others are stale state from another
-# project — skip to avoid uninstalling something not ours to manage).
+# Snapshot: emit "id\tscope\tversion\tlastUpdated" rows for plugins relevant
+# to THIS run. Claude tracks all installs (user AND project) in the user-level
+# installed_plugins.json with a `.projectPath` field on project-scope entries.
+# We include:
+#   - user-file rows with scope=user (truly user-installed), AND
+#   - user-file rows with scope=project AND projectPath==$REPO_DIR (this project)
+#   - project-file rows (if exists), used as the authoritative project state
+# Skipped: scope=project rows for OTHER projects — those aren't ours to manage.
 snapshot() {
-  local f source
-  for spec in "$USER_INSTALLED_FILE:user" "$PROJ_INSTALLED_FILE:project"; do
-    f="${spec%:*}"
-    source="${spec##*:}"
-    [[ -f "$f" ]] || continue
-    jq -r --arg src "$source" '
+  if [[ -f "$USER_INSTALLED_FILE" ]]; then
+    jq -r --arg repo "$REPO_DIR" '
       .plugins | to_entries[] | .key as $id | .value[]
-      | select(.scope == $src)
-      | "\($id)\t\(.scope)\t\(.version // "")\t\(.lastUpdated // "")\t\($src)"
-    ' "$f" 2>/dev/null
-  done
+      | select(.scope == "user" or (.scope == "project" and (.projectPath // "") == $repo))
+      | "\($id)\t\(.scope)\t\(.version // "")\t\(.lastUpdated // "")"
+    ' "$USER_INSTALLED_FILE" 2>/dev/null
+  fi
+  if [[ -f "$PROJ_INSTALLED_FILE" ]]; then
+    jq -r '
+      .plugins | to_entries[] | .key as $id | .value[]
+      | select(.scope == "project")
+      | "\($id)\t\(.scope)\t\(.version // "")\t\(.lastUpdated // "")"
+    ' "$PROJ_INSTALLED_FILE" 2>/dev/null
+  fi
 }
 
 # Maps keyed by "id|scope".
 declare -A BEFORE_VER BEFORE_TS BEFORE_SCOPES
-while IFS=$'\t' read -r id scope ver ts _src; do
+while IFS=$'\t' read -r id scope ver ts; do
   [[ -z "$id" ]] && continue
   BEFORE_VER["$id|$scope"]="$ver"
   BEFORE_TS["$id|$scope"]="$ts"
@@ -238,7 +245,7 @@ fi
 
 # Snapshot AFTER.
 declare -A AFTER_VER AFTER_TS
-while IFS=$'\t' read -r id scope ver ts _src; do
+while IFS=$'\t' read -r id scope ver ts; do
   [[ -z "$id" ]] && continue
   AFTER_VER["$id|$scope"]="$ver"
   AFTER_TS["$id|$scope"]="$ts"

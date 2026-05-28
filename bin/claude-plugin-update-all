@@ -11,16 +11,18 @@
 # - Captures per-plugin stderr from claude so real errors surface in the report
 #   instead of being swallowed.
 #
-# Usage: claude-plugin-update-all [--verbose|-v] [--no-prune]
+# Usage: claude-plugin-update-all [--verbose|-v] [--no-prune] [--no-hint]
 
 set -euo pipefail
 
 VERBOSE=0
 PRUNE=1
+HINT=1
 for arg in "$@"; do
   case "$arg" in
   -v | --verbose) VERBOSE=1 ;;
   --no-prune) PRUNE=0 ;;
+  --no-hint) HINT=0 ;;
   -h | --help)
     sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
     exit 0
@@ -444,7 +446,7 @@ if [[ $VERBOSE -eq 1 && $N_OK -gt 0 ]]; then
   printf '%s\n' "${UP_TO_DATE[@]}" | render_tree "Up to date ($N_OK):"
 fi
 
-if [[ $N_I -gt 0 || $N_U -gt 0 || $N_P -gt 0 ]]; then
+if [[ $HINT -eq 1 && ($N_I -gt 0 || $N_U -gt 0 || $N_P -gt 0) ]]; then
   echo
   echo "Run /reload-plugins in your console to reload the just-installed plugins"
 fi

@@ -19,16 +19,22 @@ VERBOSE=0
 PRUNE=1
 for arg in "$@"; do
   case "$arg" in
-    -v|--verbose) VERBOSE=1 ;;
-    --no-prune) PRUNE=0 ;;
-    -h|--help) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    *) echo "Unknown arg: $arg" >&2; exit 2 ;;
+  -v | --verbose) VERBOSE=1 ;;
+  --no-prune) PRUNE=0 ;;
+  -h | --help)
+    sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+    exit 0
+    ;;
+  *)
+    echo "Unknown arg: $arg" >&2
+    exit 2
+    ;;
   esac
 done
 
 REPO_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
 USER_CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-PARALLEL="${INSTALL_PLUGINS_PARALLEL:-4}"  # 8 hit concurrency bugs writing installed_plugins.json; 4 is safe
+PARALLEL="${INSTALL_PLUGINS_PARALLEL:-4}" # 8 hit concurrency bugs writing installed_plugins.json; 4 is safe
 INSTALLED_FILE="$USER_CFG/plugins/installed_plugins.json"
 
 # Per-file scope: which scope to install at if the file enables a plugin.
@@ -47,7 +53,10 @@ SETTINGS_FILES=(
   "$REPO_DIR/.claude/settings.json"
   "$REPO_DIR/.claude/settings.local.json"
 )
-[[ -f "$REPO_DIR/.claude/settings.json" ]] || { echo "ERROR: $REPO_DIR/.claude/settings.json not found" >&2; exit 1; }
+[[ -f "$REPO_DIR/.claude/settings.json" ]] || {
+  echo "ERROR: $REPO_DIR/.claude/settings.json not found" >&2
+  exit 1
+}
 
 # Refresh marketplace manifests (cheap; updates pinned commits).
 claude plugin marketplace update >/dev/null 2>&1 || true
@@ -97,7 +106,7 @@ declare -A WANT_SCOPE
 for id in "${ENABLED[@]}"; do
   WANT_SCOPE["$id"]="$(pick_scope "$id")"
   printf '%s\t%s\n' "$id" "${WANT_SCOPE[$id]}"
-done > "$INSTALL_PLAN_FILE"
+done >"$INSTALL_PLAN_FILE"
 
 # Build prune plan: every (id, scope) in installed_plugins.json that is either
 #   (a) id not in enabledPlugins, OR
@@ -113,7 +122,7 @@ if [[ $PRUNE -eq 1 ]]; then
     elif [[ -n "${WANT_SCOPE[$id]}" && "${WANT_SCOPE[$id]}" != "$scope" ]]; then
       printf '%s\t%s\n' "$id" "$scope"
     fi
-  done > "$PRUNE_PLAN_FILE"
+  done >"$PRUNE_PLAN_FILE"
 fi
 
 # Per-plugin stderr capture dir — so claude's actual error survives instead of
@@ -121,8 +130,8 @@ fi
 STDERR_DIR=$(mktemp -d)
 FAIL_INSTALL_LOG="$STDERR_DIR/_FAIL_INSTALL.tsv"
 FAIL_PRUNE_LOG="$STDERR_DIR/_FAIL_PRUNE.tsv"
-: > "$FAIL_INSTALL_LOG"
-: > "$FAIL_PRUNE_LOG"
+: >"$FAIL_INSTALL_LOG"
+: >"$FAIL_PRUNE_LOG"
 export STDERR_DIR FAIL_INSTALL_LOG FAIL_PRUNE_LOG
 
 # Run installs in parallel. Empty scope ($1) means omit --scope (let claude decide).
@@ -140,7 +149,7 @@ xargs -P "$PARALLEL" -L1 sh -c '
   if [ "$rc" -ne 0 ]; then
     printf "%s\t%s\t%s\n" "$0" "${1:-default}" "$ef" >> "$FAIL_INSTALL_LOG"
   fi
-' < "$INSTALL_PLAN_FILE"
+' <"$INSTALL_PLAN_FILE"
 
 if [[ -s "$PRUNE_PLAN_FILE" ]]; then
   # shellcheck disable=SC2016  # $-vars are deliberately expanded by the inner sh -c, not by the parent bash
@@ -150,7 +159,7 @@ if [[ -s "$PRUNE_PLAN_FILE" ]]; then
     if ! claude plugin uninstall "$0" --scope "$1" >/dev/null 2>"$ef"; then
       printf "%s\t%s\t%s\n" "$0" "$1" "$ef" >> "$FAIL_PRUNE_LOG"
     fi
-  ' < "$PRUNE_PLAN_FILE"
+  ' <"$PRUNE_PLAN_FILE"
 fi
 
 # Snapshot AFTER.
@@ -186,10 +195,16 @@ while IFS=$'\t' read -r id scope; do
     bts="${BEFORE_TS[$key]:-}"
     eff_scope="$scope"
   else
-    aver=""; ats=""; bver=""; bts=""; eff_scope="?"
+    aver=""
+    ats=""
+    bver=""
+    bts=""
+    eff_scope="?"
     for k in "${!AFTER_VER[@]}"; do
       if [[ "${k%|*}" == "$id" ]]; then
-        aver="${AFTER_VER[$k]}"; ats="${AFTER_TS[$k]}"; eff_scope="${k#*|}"
+        aver="${AFTER_VER[$k]}"
+        ats="${AFTER_TS[$k]}"
+        eff_scope="${k#*|}"
         break
       fi
     done
@@ -204,7 +219,7 @@ while IFS=$'\t' read -r id scope; do
   else
     UP_TO_DATE+=("$id [$eff_scope] $aver")
   fi
-done < "$INSTALL_PLAN_FILE"
+done <"$INSTALL_PLAN_FILE"
 
 PRUNED=()
 PRUNE_FAILED=()
@@ -217,7 +232,7 @@ if [[ -s "$PRUNE_PLAN_FILE" ]]; then
     else
       PRUNED+=("$id [$scope] (was ${BEFORE_VER[$key]:-?})")
     fi
-  done < "$PRUNE_PLAN_FILE"
+  done <"$PRUNE_PLAN_FILE"
 fi
 
 # INSTALL_WARN: claude install returned non-zero, but plugin IS present in
@@ -232,7 +247,10 @@ if [[ -s "$FAIL_INSTALL_LOG" ]]; then
     has_after=0
     if [[ "$scope" == "default" ]]; then
       for k in "${!AFTER_VER[@]}"; do
-        [[ "${k%|*}" == "$id" ]] && { has_after=1; break; }
+        [[ "${k%|*}" == "$id" ]] && {
+          has_after=1
+          break
+        }
       done
     else
       [[ -n "${AFTER_VER[$key]:-}" ]] && has_after=1
@@ -240,7 +258,7 @@ if [[ -s "$FAIL_INSTALL_LOG" ]]; then
     if [[ "$has_after" -eq 1 ]]; then
       INSTALL_WARN+=("$id [$scope] — $(brief_err "$ef")")
     fi
-  done < "$FAIL_INSTALL_LOG"
+  done <"$FAIL_INSTALL_LOG"
 fi
 
 rm -f "$INSTALL_PLAN_FILE" "$PRUNE_PLAN_FILE"

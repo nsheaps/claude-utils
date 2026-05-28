@@ -1,0 +1,473 @@
+#!/usr/bin/env bash
+# claude-plugin-update-all — bulk-install/update/prune Claude Code plugins from settings.json.
+#
+# - Installs/updates every plugin in .claude/settings.json `enabledPlugins`,
+#   preserving its existing scope; for brand-new plugins, lets `claude plugin install`
+#   pick its own default scope (no --scope flag passed).
+# - Prunes any installed plugin NOT in enabledPlugins (uninstalls at its scope).
+# - Classifies each as installed / updated / up-to-date / pruned / failed via
+#   `installed_plugins.json` snapshot before/after (catches updates that re-fetch
+#   without bumping the version string).
+# - Captures per-plugin stderr from claude so real errors surface in the report
+#   instead of being swallowed.
+#
+# Usage: claude-plugin-update-all [--verbose|-v] [--no-prune] [--no-hint]
+#   --no-hint  skip the "Run /reload-plugins" hint at the end
+
+set -euo pipefail
+
+VERBOSE=0
+PRUNE=1
+HINT=1
+for arg in "$@"; do
+  case "$arg" in
+  -v | --verbose) VERBOSE=1 ;;
+  --no-prune) PRUNE=0 ;;
+  --no-hint) HINT=0 ;;
+  -h | --help)
+    sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
+    exit 0
+    ;;
+  *)
+    echo "Unknown arg: $arg" >&2
+    exit 2
+    ;;
+  esac
+done
+
+REPO_DIR="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)}"
+USER_CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+PARALLEL="${INSTALL_PLUGINS_PARALLEL:-4}" # 8 hit concurrency bugs writing installed_plugins.json; 4 is safe
+
+# installed_plugins.json lives at user scope AND (optionally) project scope.
+# Each entry's `.scope` field SHOULD match which file it lives in (user→user,
+# project→project). Reality: claude can leave stale `scope:project` rows in the
+# user file that belong to OTHER projects. We treat each file as authoritative
+# only for its own scope and skip orphan rows.
+USER_INSTALLED_FILE="$USER_CFG/plugins/installed_plugins.json"
+PROJ_INSTALLED_FILE="$REPO_DIR/.claude/plugins/installed_plugins.json"
+
+# Per-file scope: which scope to install at if the file enables a plugin.
+# This is the authoritative source of scope — if the user enabled a plugin in
+# user settings, install at user scope; project file → project scope. Falling
+# back to installed_plugins.json scope was wrong (it's a result, not a source).
+declare -A FILE_SCOPE=(
+  ["$USER_CFG/settings.json"]="user"
+  ["$USER_CFG/settings.local.json"]="user"
+  ["$REPO_DIR/.claude/settings.json"]="project"
+  ["$REPO_DIR/.claude/settings.local.json"]="project"
+)
+SETTINGS_FILES=(
+  "$USER_CFG/settings.json"
+  "$USER_CFG/settings.local.json"
+  "$REPO_DIR/.claude/settings.json"
+  "$REPO_DIR/.claude/settings.local.json"
+)
+[[ -f "$REPO_DIR/.claude/settings.json" ]] || {
+  echo "ERROR: $REPO_DIR/.claude/settings.json not found" >&2
+  exit 1
+}
+
+# Refresh ALL marketplaces. Without a name `marketplace update` is a noop on
+# recent claude, so enumerate each marketplace from settings (user + project)
+# and refresh by name. Bounded parallel — marketplace fetches are short.
+# Auto-register any marketplaces declared in `extraKnownMarketplaces` that
+# aren't yet in `claude plugin marketplace list`. The CLI doesn't auto-add from
+# settings.json — without this, `claude plugin install foo@bar` fails because
+# the `bar` marketplace was never registered.
+register_extra_marketplaces() {
+  local f known have_list mp src
+  # Already-registered marketplace names.
+  have_list="$(claude plugin marketplace list 2>/dev/null | awk '/^[[:space:]]*[❯>][[:space:]]*/ {print $2}')"
+  for f in "${SETTINGS_FILES[@]}"; do
+    [[ -f "$f" ]] || continue
+    # Emit "name<TAB>source-json" rows for each extraKnownMarketplaces entry.
+    # Fragility note: `.value.source` is a JSON object, interpolated as a string
+    # via `"\(.key)\t\(.value.source)"`. The inner `jq` at line ~97 re-parses
+    # `$src` as JSON. This works because JSON-in-a-string is still valid JSON,
+    # but it would break if the embedded object ever contained a literal TAB
+    # (our row delimiter) or NEWLINE. settings.json is hand-authored / tool-
+    # serialized so the risk is low in practice — flagged here so a future
+    # change that adds free-text fields knows to switch to NUL-delimited rows.
+    while IFS=$'\t' read -r mp src; do
+      [[ -z "$mp" ]] && continue
+      grep -Fxq "$mp" <<<"$have_list" && continue
+      # Resolve relative directory paths against the settings file's dir.
+      local src_dir
+      src_dir="$(dirname "$f")"
+      local source_arg
+      source_arg="$(jq -r --arg base "$src_dir" '
+        if .source == "directory" then
+          (.path | if startswith("/") then . else "\($base)/\(.)" end)
+        elif .source == "github" then
+          ("github:\(.owner)/\(.repo)")
+        elif .source == "url" then
+          .url
+        else
+          empty
+        end
+      ' <<<"$src")"
+      [[ -z "$source_arg" ]] && continue
+      claude plugin marketplace add "$source_arg" >/dev/null 2>&1 || true
+      have_list="${have_list}"$'\n'"$mp"
+    done < <(jq -r '.extraKnownMarketplaces // {} | to_entries[] | "\(.key)\t\(.value.source)"' "$f" 2>/dev/null)
+  done
+}
+
+# Refresh ALL marketplaces referenced by enabled plugins. `claude plugin
+# marketplace update` without a name is a noop on recent claude — enumerate
+# names from enabledPlugins keys and refresh each.
+# shellcheck disable=SC2016  # $1 in the trailing xargs sh -c body is deliberately expanded by the inner sh, not by the parent
+refresh_marketplaces() {
+  local -A SEEN=()
+  local f mp
+  for f in "${SETTINGS_FILES[@]}"; do
+    [[ -f "$f" ]] || continue
+    while IFS= read -r mp; do
+      [[ -z "$mp" ]] && continue
+      [[ -n "${SEEN[$mp]:-}" ]] && continue
+      SEEN["$mp"]=1
+      printf '%s\n' "$mp"
+    done < <(jq -r '.enabledPlugins // {} | keys[] | split("@")[1] // empty' "$f" 2>/dev/null)
+  done | xargs -I{} -P "$PARALLEL" sh -c 'claude plugin marketplace update "$1" >/dev/null 2>&1 || true' _ {}
+}
+
+register_extra_marketplaces
+refresh_marketplaces
+
+# Snapshot: emit "id\tscope\tversion\tlastUpdated" rows for plugins relevant
+# to THIS run. Claude tracks all installs (user AND project) in the user-level
+# installed_plugins.json with a `.projectPath` field on project-scope entries.
+# We include:
+#   - user-file rows with scope=user (truly user-installed), AND
+#   - user-file rows with scope=project AND projectPath==$REPO_DIR (this project)
+#   - project-file rows (if exists), used as the authoritative project state
+# Skipped: scope=project rows for OTHER projects — those aren't ours to manage.
+snapshot() {
+  if [[ -f "$USER_INSTALLED_FILE" ]]; then
+    jq -r --arg repo "$REPO_DIR" '
+      .plugins | to_entries[] | .key as $id | .value[]
+      | select(.scope == "user" or (.scope == "project" and (.projectPath // "") == $repo))
+      | "\($id)\t\(.scope)\t\(.version // "")\t\(.lastUpdated // "")"
+    ' "$USER_INSTALLED_FILE" 2>/dev/null
+  fi
+  if [[ -f "$PROJ_INSTALLED_FILE" ]]; then
+    jq -r '
+      .plugins | to_entries[] | .key as $id | .value[]
+      | select(.scope == "project")
+      | "\($id)\t\(.scope)\t\(.version // "")\t\(.lastUpdated // "")"
+    ' "$PROJ_INSTALLED_FILE" 2>/dev/null
+  fi
+}
+
+# Maps keyed by "id|scope".
+declare -A BEFORE_VER BEFORE_TS
+while IFS=$'\t' read -r id scope ver ts; do
+  [[ -z "$id" ]] && continue
+  BEFORE_VER["$id|$scope"]="$ver"
+  BEFORE_TS["$id|$scope"]="$ts"
+done < <(snapshot)
+
+# enabledPlugins: read in load order. Project files override user files; for
+# each id, the LAST file that sets it true wins (matches claude's load order
+# where project settings override user settings).
+declare -A ENABLED_SET ENABLED_SCOPE
+for f in "${SETTINGS_FILES[@]}"; do
+  [[ -f "$f" ]] || continue
+  scope="${FILE_SCOPE[$f]}"
+  while IFS= read -r id; do
+    [[ -z "$id" ]] && continue
+    ENABLED_SET["$id"]=1
+    ENABLED_SCOPE["$id"]="$scope"
+  done < <(jq -r '.enabledPlugins // {} | to_entries[] | select(.value == true) | .key' "$f" 2>/dev/null)
+done
+ENABLED=()
+for id in "${!ENABLED_SET[@]}"; do ENABLED+=("$id"); done
+
+# Cleanup all mktemps on exit (including early-exit via set -e). Set EARLY —
+# before any mktemp so a failed allocation later still triggers cleanup of
+# whatever has already been created. The `${VAR:-}` guards handle the case
+# where a var isn't set yet.
+trap 'rm -rf "${STDERR_DIR:-}" "${INSTALL_PLAN_FILE:-}" "${PRUNE_PLAN_FILE:-}"' EXIT
+
+# Scope for each enabled plugin comes from WHERE it was enabled (settings file →
+# scope), not from where it happens to be installed.
+# Build install plan: "id\tscope" lines (scope may be empty for new plugins).
+INSTALL_PLAN_FILE=$(mktemp)
+declare -A WANT_SCOPE
+for id in "${ENABLED[@]}"; do
+  WANT_SCOPE["$id"]="${ENABLED_SCOPE[$id]}"
+  printf '%s\t%s\n' "$id" "${WANT_SCOPE[$id]}"
+done >"$INSTALL_PLAN_FILE"
+
+# Build prune plan: every (id, scope) in installed_plugins.json that is either
+#   (a) id not in enabledPlugins, OR
+#   (b) id IS enabled with a known scope different from the one we'd install to
+#       (dedupe; skipped when WANT_SCOPE is empty since we're not forcing a target).
+PRUNE_PLAN_FILE=$(mktemp)
+if [[ $PRUNE -eq 1 ]]; then
+  for key in "${!BEFORE_VER[@]}"; do
+    id="${key%|*}"
+    scope="${key#*|}"
+    if [[ -z "${ENABLED_SET[$id]:-}" ]]; then
+      printf '%s\t%s\n' "$id" "$scope"
+    elif [[ -n "${WANT_SCOPE[$id]}" && "${WANT_SCOPE[$id]}" != "$scope" ]]; then
+      printf '%s\t%s\n' "$id" "$scope"
+    fi
+  done >"$PRUNE_PLAN_FILE"
+fi
+
+# Per-plugin stderr capture dir — so claude's actual error survives instead of
+# being swallowed by `>/dev/null 2>&1`. Surfaced in the report at the end.
+STDERR_DIR=$(mktemp -d)
+FAIL_INSTALL_DIR="$STDERR_DIR/_fail_install.d"
+FAIL_PRUNE_DIR="$STDERR_DIR/_fail_prune.d"
+FAIL_INSTALL_LOG="$STDERR_DIR/_FAIL_INSTALL.tsv"
+FAIL_PRUNE_LOG="$STDERR_DIR/_FAIL_PRUNE.tsv"
+mkdir -p "$FAIL_INSTALL_DIR" "$FAIL_PRUNE_DIR"
+export STDERR_DIR FAIL_INSTALL_DIR FAIL_PRUNE_DIR
+
+# Run installs in parallel. Empty scope ($1) means omit --scope (let claude decide).
+# Inline the id-sanitize (tr /@: _) since sh -c subshells don't inherit bash functions.
+# Per-plugin failure files (written into $FAIL_INSTALL_DIR) are concatenated to
+# the aggregate log after xargs finishes — avoids the `>>`-from-parallel race
+# that's only atomic up to PIPE_BUF (4096 bytes on Linux).
+# shellcheck disable=SC2016  # $-vars are deliberately expanded by the inner sh -c, not by the parent bash
+xargs -P "$PARALLEL" -L1 sh -c '
+  sid=$(printf %s "$0" | tr "/@:" "___")
+  ef="$STDERR_DIR/install__${sid}__${1:-default}.err"
+  rc=0
+  if [ -n "$1" ]; then
+    claude plugin install "$0" --scope "$1" >/dev/null 2>"$ef" || rc=$?
+  else
+    claude plugin install "$0" >/dev/null 2>"$ef" || rc=$?
+  fi
+  if [ "$rc" -ne 0 ]; then
+    printf "%s\t%s\t%s\n" "$0" "${1:-default}" "$ef" > "$FAIL_INSTALL_DIR/${sid}__${1:-default}.row"
+  fi
+' <"$INSTALL_PLAN_FILE"
+
+# Concat per-plugin rows into aggregate log (single-writer, safe).
+find "$FAIL_INSTALL_DIR" -type f -name '*.row' -print0 2>/dev/null |
+  xargs -0 cat 2>/dev/null >"$FAIL_INSTALL_LOG" || : >"$FAIL_INSTALL_LOG"
+
+if [[ -s "$PRUNE_PLAN_FILE" ]]; then
+  # shellcheck disable=SC2016  # $-vars are deliberately expanded by the inner sh -c, not by the parent bash
+  xargs -P "$PARALLEL" -L1 sh -c '
+    sid=$(printf %s "$0" | tr "/@:" "___")
+    ef="$STDERR_DIR/uninstall__${sid}__${1}.err"
+    if ! claude plugin uninstall "$0" --scope "$1" >/dev/null 2>"$ef"; then
+      printf "%s\t%s\t%s\n" "$0" "$1" "$ef" > "$FAIL_PRUNE_DIR/${sid}__${1}.row"
+    fi
+  ' <"$PRUNE_PLAN_FILE"
+  find "$FAIL_PRUNE_DIR" -type f -name '*.row' -print0 2>/dev/null |
+    xargs -0 cat 2>/dev/null >"$FAIL_PRUNE_LOG" || : >"$FAIL_PRUNE_LOG"
+else
+  : >"$FAIL_PRUNE_LOG"
+fi
+
+# Snapshot AFTER.
+declare -A AFTER_VER AFTER_TS
+while IFS=$'\t' read -r id scope ver ts; do
+  [[ -z "$id" ]] && continue
+  AFTER_VER["$id|$scope"]="$ver"
+  AFTER_TS["$id|$scope"]="$ts"
+done < <(snapshot)
+
+# Classify enabled plugins.
+INSTALLED=()
+UPDATED=()
+UP_TO_DATE=()
+FAILED=()
+sanitize_local() { printf '%s' "$1" | tr '/@:' '___'; }
+brief_err() {
+  local f="$1"
+  if [[ -s "$f" ]]; then
+    head -n 2 "$f" | tr '\n' ' ' | sed 's/  */ /g; s/ $//'
+  else
+    printf '(no stderr captured)'
+  fi
+}
+
+while IFS=$'\t' read -r id scope; do
+  # When scope was empty (let-claude-decide), look for ANY new (id, *) row.
+  if [[ -n "$scope" ]]; then
+    key="$id|$scope"
+    aver="${AFTER_VER[$key]:-}"
+    ats="${AFTER_TS[$key]:-}"
+    bver="${BEFORE_VER[$key]:-}"
+    bts="${BEFORE_TS[$key]:-}"
+    eff_scope="$scope"
+  else
+    aver=""
+    ats=""
+    bver=""
+    bts=""
+    eff_scope="?"
+    for k in "${!AFTER_VER[@]}"; do
+      if [[ "${k%|*}" == "$id" ]]; then
+        aver="${AFTER_VER[$k]}"
+        ats="${AFTER_TS[$k]}"
+        eff_scope="${k#*|}"
+        break
+      fi
+    done
+  fi
+  if [[ -z "$aver" ]]; then
+    ef="$STDERR_DIR/install__$(sanitize_local "$id")__${scope:-default}.err"
+    FAILED+=("$id [${eff_scope}] — $(brief_err "$ef")")
+  elif [[ -z "$bver" ]]; then
+    INSTALLED+=("$id [$eff_scope] → $aver")
+  elif [[ "$bts" != "$ats" || "$bver" != "$aver" ]]; then
+    UPDATED+=("$id [$eff_scope] $bver → $aver")
+  else
+    UP_TO_DATE+=("$id [$eff_scope] $aver")
+  fi
+done <"$INSTALL_PLAN_FILE"
+
+PRUNED=()
+PRUNE_FAILED=()
+if [[ -s "$PRUNE_PLAN_FILE" ]]; then
+  while IFS=$'\t' read -r id scope; do
+    key="$id|$scope"
+    if [[ -n "${AFTER_VER[$key]:-}" ]]; then
+      ef="$STDERR_DIR/uninstall__$(sanitize_local "$id")__${scope}.err"
+      PRUNE_FAILED+=("$id [$scope] — $(brief_err "$ef")")
+    else
+      PRUNED+=("$id [$scope] (was ${BEFORE_VER[$key]:-?})")
+    fi
+  done <"$PRUNE_PLAN_FILE"
+fi
+
+# INSTALL_WARN: claude install returned non-zero, but plugin IS present in
+# AFTER snapshot — so it's installed but refresh/update failed (usually a stale
+# marketplace cache or plugin no longer in marketplace).
+INSTALL_WARN=()
+if [[ -s "$FAIL_INSTALL_LOG" ]]; then
+  while IFS=$'\t' read -r id scope ef; do
+    [[ -z "$id" ]] && continue
+    key="$id|$scope"
+    # If snapshot has it (any scope when scope was 'default'), classify as warn.
+    has_after=0
+    if [[ "$scope" == "default" ]]; then
+      for k in "${!AFTER_VER[@]}"; do
+        [[ "${k%|*}" == "$id" ]] && {
+          has_after=1
+          break
+        }
+      done
+    else
+      [[ -n "${AFTER_VER[$key]:-}" ]] && has_after=1
+    fi
+    if [[ "$has_after" -eq 1 ]]; then
+      INSTALL_WARN+=("$id [$scope] — $(brief_err "$ef")")
+    fi
+  done <"$FAIL_INSTALL_LOG"
+fi
+
+# Temp files cleaned by EXIT trap (set near STDERR_DIR allocation).
+
+# Report.
+TOTAL=${#ENABLED[@]}
+N_I=${#INSTALLED[@]}
+N_U=${#UPDATED[@]}
+N_OK=${#UP_TO_DATE[@]}
+N_F=${#FAILED[@]}
+N_P=${#PRUNED[@]}
+N_PF=${#PRUNE_FAILED[@]}
+N_W=${#INSTALL_WARN[@]}
+
+# render_tree: read `name@mp [scope] rest` lines on stdin, group by marketplace,
+# sort rows (scope, name, rest), emit `tree(1)`-styled output with globally
+# aligned scope+name columns across the whole section.
+render_tree() {
+  local title="$1"
+  awk -v title="$title" '
+  {
+    line = $0
+    sub(/^[[:space:]]*-[[:space:]]+/, "", line)
+    if (line == "") next
+    ipos = index(line, " [")
+    if (ipos == 0) { print line; next }
+    nm = substr(line, 1, ipos - 1)
+    rest = substr(line, ipos + 2)
+    cpos = index(rest, "]")
+    if (cpos == 0) { print line; next }
+    scope = substr(rest, 1, cpos - 1)
+    after = substr(rest, cpos + 1)
+    sub(/^[[:space:]]+/, "", after)
+    apos = index(nm, "@")
+    if (apos == 0) { name = nm; mp = "(no marketplace)" } else {
+      name = substr(nm, 1, apos - 1)
+      mp = substr(nm, apos + 1)
+    }
+    n++
+    name_a[n] = name; mp_a[n] = mp; scope_a[n] = scope; ver_a[n] = after
+    if (length(scope) > scope_w) scope_w = length(scope)
+    if (length(name)  > name_w)  name_w  = length(name)
+    mps_seen[mp] = 1
+  }
+  END {
+    if (n == 0) exit
+    print title
+    m = 0; for (k in mps_seen) mps[++m] = k
+    for (i = 1; i <= m; i++) for (j = i + 1; j <= m; j++) if (mps[i] > mps[j]) { t = mps[i]; mps[i] = mps[j]; mps[j] = t }
+    for (mi = 1; mi <= m; mi++) {
+      cur_mp = mps[mi]
+      last_mp = (mi == m)
+      mp_branch  = last_mp ? "└── " : "├── "
+      mp_indent  = last_mp ? "    " : "│   "
+      print mp_branch cur_mp "/"
+      r = 0
+      for (i = 1; i <= n; i++) if (mp_a[i] == cur_mp) {
+        r++
+        keys[r] = sprintf("%s\x01%s\x01%s\x01%06d", scope_a[i], name_a[i], ver_a[i], i)
+      }
+      for (i = 1; i <= r; i++) for (j = i + 1; j <= r; j++) if (keys[i] > keys[j]) { t = keys[i]; keys[i] = keys[j]; keys[j] = t }
+      for (i = 1; i <= r; i++) {
+        split(keys[i], parts, "\x01")
+        idx = parts[4] + 0
+        last_row = (i == r)
+        row_branch = last_row ? "└── " : "├── "
+        printf "%s%s[%-*s]  %-*s  %s\n", mp_indent, row_branch, scope_w, scope_a[idx], name_w, name_a[idx], ver_a[idx]
+      }
+      delete keys
+    }
+  }
+  '
+}
+
+if [[ $N_I -eq 0 && $N_U -eq 0 && $N_F -eq 0 && $N_P -eq 0 && $N_PF -eq 0 && $N_W -eq 0 ]]; then
+  echo "All $TOTAL enabled plugins are up to date."
+else
+  echo "Processed $TOTAL enabled, ${#PRUNED[@]} pruned: $N_I installed, $N_U updated, $N_OK already current, $N_P pruned, $N_F install-failed, $N_PF prune-failed, $N_W install-warn."
+  echo
+  if [[ $N_I -gt 0 ]]; then
+    printf '%s\n' "${INSTALLED[@]}" | render_tree "Installed ($N_I):"
+  fi
+  if [[ $N_U -gt 0 ]]; then
+    printf '%s\n' "${UPDATED[@]}" | render_tree "Updated ($N_U):"
+  fi
+  if [[ $N_P -gt 0 ]]; then
+    printf '%s\n' "${PRUNED[@]}" | render_tree "Pruned ($N_P):"
+  fi
+  if [[ $N_F -gt 0 ]]; then
+    printf '%s\n' "${FAILED[@]}" | render_tree "Install failed ($N_F):"
+  fi
+  if [[ $N_PF -gt 0 ]]; then
+    printf '%s\n' "${PRUNE_FAILED[@]}" | render_tree "Prune failed ($N_PF):"
+  fi
+  if [[ $N_W -gt 0 ]]; then
+    printf '%s\n' "${INSTALL_WARN[@]}" | render_tree "Install warnings ($N_W) — plugin already installed but claude refresh returned non-zero:"
+  fi
+fi
+
+if [[ $VERBOSE -eq 1 && $N_OK -gt 0 ]]; then
+  echo
+  printf '%s\n' "${UP_TO_DATE[@]}" | render_tree "Up to date ($N_OK):"
+fi
+
+if [[ $HINT -eq 1 && ($N_I -gt 0 || $N_U -gt 0 || $N_P -gt 0) ]]; then
+  echo
+  echo "Run /reload-plugins in your console to reload the just-installed plugins"
+fi

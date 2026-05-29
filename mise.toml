@@ -1,6 +1,6 @@
 [tools]
 node = "lts"
-yarn = "4"
+yarn = "4.14.1"
 shfmt = "latest"
 
 [tasks.test]

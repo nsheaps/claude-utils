@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.15](https://github.com/nsheaps/claude-utils/compare/v0.12.14...v0.12.15) (2026-05-29)
+
+### Bug Fixes
+
+* **ci:** pin yarn to 4.14.1 in mise.toml to match packageManager ([#53](https://github.com/nsheaps/claude-utils/issues/53)) ([758b916](https://github.com/nsheaps/claude-utils/commit/758b9169bf4c0c1d5da9d9f27c61b83f64258a5d))
+
 ## [0.12.14](https://github.com/nsheaps/claude-utils/compare/v0.12.13...v0.12.14) (2026-05-15)
 
 ### Maintenance

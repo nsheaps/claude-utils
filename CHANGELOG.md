@@ -1,5 +1,7 @@
 # Changelog
 
+## [0.12.51](https://github.com/nsheaps/claude-utils/compare/v0.12.50...v0.12.51) (2026-06-06)
+
 ## [0.12.50](https://github.com/nsheaps/claude-utils/compare/v0.12.49...v0.12.50) (2026-06-06)
 
 ### Maintenance

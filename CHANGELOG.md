@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.62](https://github.com/nsheaps/claude-utils/compare/v0.12.61...v0.12.62) (2026-06-10)
+
+### Maintenance
+
+* add 2.1.170 to TESTED_VERSIONS ([#114](https://github.com/nsheaps/claude-utils/issues/114)) ([6460450](https://github.com/nsheaps/claude-utils/commit/646045075e0352b8a2301830c66c9897c7cb32ec))
+
 ## [0.12.61](https://github.com/nsheaps/claude-utils/compare/v0.12.60...v0.12.61) (2026-06-08)
 
 ### Maintenance

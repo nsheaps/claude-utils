@@ -25,7 +25,7 @@
     "@anthropic-ai/claude-code-darwin-x64": "2.1.152",
     "@anthropic-ai/claude-code-linux-x64": "2.1.150",
     "@anthropic-ai/claude-code-linux-arm64": "2.1.152",
-    "@anthropic-ai/claude-code-linux-x64-musl": "2.1.150",
+    "@anthropic-ai/claude-code-linux-x64-musl": "2.1.152",
     "@anthropic-ai/claude-code-linux-arm64-musl": "2.1.152",
     "@anthropic-ai/claude-code-win32-x64": "2.1.150",
     "@anthropic-ai/claude-code-win32-arm64": "2.1.150"

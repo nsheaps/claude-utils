@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.129](https://github.com/nsheaps/claude-utils/compare/v0.12.128...v0.12.129) (2026-07-01)
+
+### Maintenance
+
+* **deps:** update dependency @anthropic-ai/claude-code-darwin-x64 to v2.1.159 ([#226](https://github.com/nsheaps/claude-utils/issues/226)) ([0bf186e](https://github.com/nsheaps/claude-utils/commit/0bf186ee7f1815bf4bf1f1e37dd53cbe6c82c117)), closes [#8203](https://github.com/nsheaps/claude-utils/issues/8203)
+
 ## [0.12.128](https://github.com/nsheaps/claude-utils/compare/v0.12.127...v0.12.128) (2026-07-01)
 
 ### Maintenance

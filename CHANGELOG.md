@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.169](https://github.com/nsheaps/claude-utils/compare/v0.12.168...v0.12.169) (2026-07-11)
+
+### Maintenance
+
+* **deps:** update dependency @anthropic-ai/claude-code-win32-x64 to v2.1.173 ([#302](https://github.com/nsheaps/claude-utils/issues/302)) ([aa0e927](https://github.com/nsheaps/claude-utils/commit/aa0e927c188c20b138b7fa7708e5cb8bfd84b0ce)), closes [#8203](https://github.com/nsheaps/claude-utils/issues/8203)
+
 ## [0.12.168](https://github.com/nsheaps/claude-utils/compare/v0.12.167...v0.12.168) (2026-07-11)
 
 ### Maintenance

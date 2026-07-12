@@ -22,7 +22,7 @@
   "dependencies": {},
   "optionalDependencies": {
     "@anthropic-ai/claude-code-darwin-arm64": "2.1.175",
-    "@anthropic-ai/claude-code-darwin-x64": "2.1.173",
+    "@anthropic-ai/claude-code-darwin-x64": "2.1.176",
     "@anthropic-ai/claude-code-linux-x64": "2.1.173",
     "@anthropic-ai/claude-code-linux-arm64": "2.1.175",
     "@anthropic-ai/claude-code-linux-x64-musl": "2.1.173",

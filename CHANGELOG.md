@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.178](https://github.com/nsheaps/claude-utils/compare/v0.12.177...v0.12.178) (2026-07-15)
+
+### Maintenance
+
+* **deps:** update yarn to v4.17.0 ([#316](https://github.com/nsheaps/claude-utils/issues/316)) ([b035977](https://github.com/nsheaps/claude-utils/commit/b0359773d98ecc7ee07d585a88ac34aadcc2311d))
+
 ## [0.12.177](https://github.com/nsheaps/claude-utils/compare/v0.12.176...v0.12.177) (2026-07-14)
 
 ### Maintenance

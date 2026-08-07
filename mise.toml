@@ -30,8 +30,8 @@ description = "Run all tests (bash CLI tests + node:test unit tests)"
 depends = ["test-shell", "test-ts"]
 
 [tasks.check]
-description = "Run every check: lint + fmt-check + build + test"
-depends = ["lint", "fmt-check", "build", "test"]
+description = "Run every check: lint + fmt-check + build + test + the installed-CLI acceptance test"
+depends = ["lint", "fmt-check", "build", "test", "verify-install"]
 
 # --- TypeScript -------------------------------------------------------------------------------
 
@@ -78,6 +78,10 @@ description = "Check bash formatting with shfmt, without writing"
 run = "bash scripts/shell-tools.sh fmt-check"
 
 # --- other ------------------------------------------------------------------------------------
+
+[tasks.verify-install]
+description = "Reproduce the Homebrew install of the node CLIs and check they run with node off PATH"
+run = "bash scripts/verify-local-install.sh"
 
 [tasks.lint-formula]
 description = "Lint the Homebrew formula with rubocop"

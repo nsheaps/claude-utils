@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.240](https://github.com/nsheaps/claude-utils/compare/v0.12.239...v0.12.240) (2026-08-07)
+
+### Maintenance
+
+* remove .claude.json and claude-team extraction analysis document ([107ab42](https://github.com/nsheaps/claude-utils/commit/107ab422c0b0f084677abaa27a94e37719035511))
+
 ## [0.12.239](https://github.com/nsheaps/claude-utils/compare/v0.12.238...v0.12.239) (2026-08-07)
 
 ### Maintenance

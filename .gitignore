@@ -29,6 +29,5 @@ test/tmp/
 # mise local config
 .mise.local.toml
 
-# nx cache
-.nx/cache
-.nx/workspace-data
+# NX monorepo stuff
+.nx/

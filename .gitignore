@@ -28,3 +28,6 @@ test/tmp/
 
 # mise local config
 .mise.local.toml
+
+# NX monorepo stuff
+.nx/

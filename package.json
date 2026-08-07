@@ -8,9 +8,29 @@
     "url": "https://github.com/nsheaps/claude-utils.git"
   },
   "license": "MIT",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "nx run-many --target=build --all",
+    "lint": "nx run-many --target=lint --all",
+    "test": "nx run-many --target=test --all",
+    "typecheck": "nx run-many --target=typecheck --all",
+    "format": "prettier --write \"**/*.{ts,mjs,json,md,yaml,yml}\"",
+    "format:check": "prettier --check \"**/*.{ts,mjs,json,md,yaml,yml}\""
+  },
   "devDependencies": {
     "@release-it/conventional-changelog": "^11.0.1",
-    "release-it": "^20.2.1"
+    "@types/node": "~24.13.3",
+    "esbuild": "~0.25.10",
+    "nx": "~23.0.1",
+    "oxlint": "~1.73.0",
+    "prettier": "~3.6.2",
+    "release-it": "^20.2.1",
+    "typescript": "~6.0.3"
   },
-  "packageManager": "yarn@4.17.0+sha512.c2957de2f9025ab14d63b24d0d8be1f1655810e22c341042c27f7ecd017b180ec12db73d69ac366d71b304ef9f069349ce462de96f04f8f1da317f4f762c95ae"
+  "packageManager": "yarn@4.17.0+sha512.c2957de2f9025ab14d63b24d0d8be1f1655810e22c341042c27f7ecd017b180ec12db73d69ac366d71b304ef9f069349ce462de96f04f8f1da317f4f762c95ae",
+  "engines": {
+    "node": ">=22"
+  }
 }

@@ -1,0 +1,7 @@
+# Generated single-file executables. Built by scripts/build-cli.mjs, committed on purpose.
+bin/
+dist/
+node_modules/
+.yarn/
+CHANGELOG.md
+yarn.lock

@@ -1,0 +1,16 @@
+{
+  "name": "agent-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Logging, per-plugin settings, and dependency bootstrapping for Claude Code plugins.",
+  "claudeUtilsCli": "agent-plugin",
+  "scripts": {
+    "build": "node ../../scripts/build-cli.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "yaml": "~2.8.1"
+  }
+}

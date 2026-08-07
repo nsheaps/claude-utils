@@ -150,7 +150,9 @@ function errText(e: unknown): string {
 function loggerFor(plugin: string, io: Io) {
   let logLevelSetting: JsonValue | undefined;
   try {
-    logLevelSetting = getIn(readSettings(resolveSettingsFile(plugin, io.env, io.cwd)), ["logLevel"]);
+    logLevelSetting = getIn(readSettings(resolveSettingsFile(plugin, io.env, io.cwd)), [
+      "logLevel",
+    ]);
   } catch {
     // A settings file that will not parse must not stop a log line from being written — the log
     // line is quite possibly what is about to explain the broken file.

@@ -14,7 +14,14 @@ import { dirname, join, resolve } from "node:path";
 import { after, describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
-const CLI = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "bin", "agent-plugin");
+const CLI = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "..",
+  "bin",
+  "agent-plugin",
+);
 
 const tmpDirs = [];
 after(() => {
@@ -327,10 +334,10 @@ describe("agent-plugin: ensure-dependency", () => {
   });
 
   it("refuses to install when autoInstall is unset, and says how to enable it", () => {
-    const { code, stderr } = run(
-      ["ensure-dependency", "definitely-not-a-real-cli-xyz", "nope@1"],
-      { cwd: project(), env },
-    );
+    const { code, stderr } = run(["ensure-dependency", "definitely-not-a-real-cli-xyz", "nope@1"], {
+      cwd: project(),
+      env,
+    });
     assert.equal(code, 1);
     assert.match(stderr, /is not installed/);
     assert.match(stderr, /mise use -g nope@1/);

@@ -116,9 +116,9 @@ export function getIn(obj: unknown, path: string[]): JsonValue | undefined {
  * Interpret a value supplied on the command line.
  *
  * Command-line arguments are always strings, but a settings file holds real types — `autoInstall`
- * is expected to be a boolean, not the string "true". Values are therefore read with YAML's own
- * scalar rules, which is what a human editing the file by hand would get: `true`/`false` become
- * booleans, `42` and `1.5` become numbers, `null` becomes null, and anything else stays a string.
+ * is expected to be a boolean, not the string "true". Values are therefore coerced to match what a
+ * human editing the file by hand would get: `true`/`false` become booleans, `42` and `1.5` become
+ * numbers, `null` and `~` become null, and anything else stays a string.
  *
  * Quoting forces a string, exactly as it does in the file: `'true'` stores the four-character
  * string. That is the escape hatch for the one case this coercion would otherwise make
@@ -213,7 +213,7 @@ export function listPlugins(env?: NodeJS.ProcessEnv, cwd?: string): string[] {
     if (plugin.includes(".") || RESERVED_MIDDLE_SEGMENTS.has(plugin)) continue;
     found.add(plugin);
   }
-  return [...found].sort();
+  return [...found].toSorted();
 }
 
 /** Render a value for stdout: scalars bare, structures as YAML so they stay readable. */

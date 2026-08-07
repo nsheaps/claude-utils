@@ -1,7 +1,17 @@
+# Prettier is scoped to the TypeScript sources under packages/ and the build scripts, via the
+# globs in package.json's format/format:check. It deliberately does NOT cover the repo's existing
+# markdown (docs/, README.md, .claude/) or the bash-era config: running it over those reformats ~60
+# hand-written files that nothing here is changing, which buries a real diff in whitespace churn.
+# Bringing those under prettier is a separate, deliberate pass.
+#
+# This file covers the paths that must stay untouched even if a glob is ever widened.
+
 # Generated single-file executables. Built by scripts/build-cli.mjs, committed on purpose.
 bin/
 dist/
 node_modules/
 .yarn/
+.nx/
 CHANGELOG.md
 yarn.lock
+docs/

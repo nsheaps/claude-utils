@@ -7454,7 +7454,7 @@ function listPlugins(env, cwd) {
     if (plugin.includes(".") || RESERVED_MIDDLE_SEGMENTS.has(plugin)) continue;
     found.add(plugin);
   }
-  return [...found].sort();
+  return [...found].toSorted();
 }
 function formatValue(value) {
   if (value === null) return "null";
@@ -7690,7 +7690,9 @@ function errText(e) {
 function loggerFor(plugin, io) {
   let logLevelSetting;
   try {
-    logLevelSetting = getIn(readSettings(resolveSettingsFile(plugin, io.env, io.cwd)), ["logLevel"]);
+    logLevelSetting = getIn(readSettings(resolveSettingsFile(plugin, io.env, io.cwd)), [
+      "logLevel"
+    ]);
   } catch {
     logLevelSetting = void 0;
   }

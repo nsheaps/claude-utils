@@ -4,20 +4,13 @@
     "default": {
       "runner": "nx/tasks-runners/default",
       "options": {
-        "cacheableOperations": [
-          "build",
-          "lint",
-          "test",
-          "typecheck"
-        ]
+        "cacheableOperations": ["build", "lint", "test", "typecheck"]
       }
     }
   },
   "targetDefaults": {
     "build": {
-      "dependsOn": [
-        "^build"
-      ],
+      "dependsOn": ["^build"],
       "inputs": [
         "{projectRoot}/src/**/*",
         "{projectRoot}/package.json",
@@ -25,10 +18,7 @@
         "{workspaceRoot}/tsconfig.base.json",
         "{workspaceRoot}/scripts/build-cli.mjs"
       ],
-      "outputs": [
-        "{projectRoot}/dist",
-        "{workspaceRoot}/bin/{projectName}"
-      ],
+      "outputs": ["{projectRoot}/dist", "{workspaceRoot}/bin/{projectName}"],
       "cache": true
     },
     "typecheck": {
@@ -40,22 +30,13 @@
       "cache": true
     },
     "lint": {
-      "inputs": [
-        "{projectRoot}/**/*",
-        "{workspaceRoot}/.oxlintrc.json"
-      ],
+      "inputs": ["{projectRoot}/**/*", "{workspaceRoot}/.oxlintrc.json"],
       "cache": true
     },
     "test": {
-      "inputs": [
-        "{projectRoot}/src/**/*",
-        "{projectRoot}/test/**/*",
-        "{projectRoot}/package.json"
-      ],
+      "inputs": ["{projectRoot}/src/**/*", "{projectRoot}/test/**/*", "{projectRoot}/package.json"],
       "cache": true,
-      "dependsOn": [
-        "build"
-      ]
+      "dependsOn": ["build"]
     }
   }
 }

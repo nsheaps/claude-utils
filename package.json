@@ -16,8 +16,8 @@
     "lint": "nx run-many --target=lint --all",
     "test": "nx run-many --target=test --all",
     "typecheck": "nx run-many --target=typecheck --all",
-    "format": "prettier --write \"**/*.{ts,mjs,json,md,yaml,yml}\"",
-    "format:check": "prettier --check \"**/*.{ts,mjs,json,md,yaml,yml}\""
+    "format": "prettier --write \"packages/**/*.{ts,mjs}\" \"scripts/*.mjs\"",
+    "format:check": "prettier --check \"packages/**/*.{ts,mjs}\" \"scripts/*.mjs\""
   },
   "devDependencies": {
     "@release-it/conventional-changelog": "^11.0.1",

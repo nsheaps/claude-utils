@@ -1018,6 +1018,12 @@ __metadata:
   languageName: node
   linkType: hard
 
+"agent-hook@workspace:packages/agent-hook":
+  version: 0.0.0-use.local
+  resolution: "agent-hook@workspace:packages/agent-hook"
+  languageName: unknown
+  linkType: soft
+
 "agent-plugin@workspace:packages/agent-plugin":
   version: 0.0.0-use.local
   resolution: "agent-plugin@workspace:packages/agent-plugin"

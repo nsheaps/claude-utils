@@ -55,31 +55,6 @@ nsheaps/claude-utils` is not a formula reference and fails with `No available fo
 | `claude-update` | Update claude-code via Homebrew |
 | `claude-clean-orphaned` | Kill orphaned Claude processes (PPID=1) |
 | `claude-diagnostics` | Capture diagnostics for troubleshooting |
-| `agent-hook-throttle` | Debounce/throttle helper for Claude Code hook scripts |
-
-### Hook Development
-
-`agent-hook-throttle` (CLI) and `bin/lib/agent-hook-throttle.sh` (sourceable bash
-library) let a Claude Code hook — most commonly a `PreToolUse` hook, which fires
-before every tool call — avoid redoing expensive checks (token refreshes, config
-re-parsing, etc.) on every single invocation. Each caller picks its own key,
-interval, and state directory; there is no global throttle policy.
-
-```bash
-# From a bash hook script:
-source "$(dirname "$0")/lib/agent-hook-throttle.sh"  # or wherever it's vendored
-if throttle_should_run "my-check" 300 "$CLAUDE_PLUGIN_DATA"; then
-  do_expensive_check
-  throttle_record "my-check" "$CLAUDE_PLUGIN_DATA"
-fi
-
-# From a hook written in another language, shell out to the CLI instead:
-agent-hook-throttle should-run --key my-check --interval 300 --state-dir "$CLAUDE_PLUGIN_DATA"
-```
-
-`--force` bypasses the throttle for cases where the underlying state is known to be
-stale (e.g. a token that's already expired) and the check must never be skipped.
-Run `agent-hook-throttle --help` for the full command reference.
 
 ### For plugin and hook authors
 
@@ -119,11 +94,23 @@ agent-plugin settings get-all --all        # every plugin (the only form that ne
 
 # Dependencies. Reads this plugin's own autoInstall setting to decide whether to install.
 agent-plugin ensure-dependency gh "gh@latest"
+
+# Throttling. A PreToolUse hook fires before every tool call, so a hook doing non-trivial work
+# (checking a token's expiry, re-parsing .envrc, ...) needs to avoid redoing it on every call.
+# --key/--interval are always the caller's choice; there is no global throttle policy.
+if agent-plugin throttle should-run --key envrc-check --interval 300; then
+  do_expensive_check
+  agent-plugin throttle record --key envrc-check
+fi
 ```
 
 The log threshold is `$AGENT_PLUGIN_LOG_LEVEL`, else the plugin's own `logLevel` setting, else
 `info`. Settings live under `$CLAUDE_PROJECT_DIR` when it is set, and the current directory
-otherwise.
+otherwise. Throttle state lives under `$CLAUDE_PLUGIN_DATA` (Claude Code's per-plugin persistent
+data directory) instead, since it is written on every hook call and has no business being
+committed alongside a plugin's hand-edited settings file — `--state-dir` overrides it. `--force`
+on `should-run` bypasses the throttle for cases where the caller already knows the state behind
+the check is stale (e.g. a token that's already expired) and the check must never be skipped.
 
 #### `agent-hook`
 

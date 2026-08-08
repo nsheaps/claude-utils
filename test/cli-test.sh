@@ -196,113 +196,6 @@ test_claude_clean_orphaned_dryrun() {
   fi
 }
 
-test_agent_hook_throttle_help() {
-  local output
-  output=$("$BIN_DIR/agent-hook-throttle" --help 2>&1) || true
-  if echo "$output" | grep -q "Debounce/throttle helper for Claude Code hook scripts"; then
-    pass "agent-hook-throttle --help shows usage"
-  else
-    fail "agent-hook-throttle --help shows usage" "Contains 'Debounce/throttle helper for Claude Code hook scripts'" "$output"
-  fi
-}
-
-test_agent_hook_throttle_first_run() {
-  local state_dir exit_code=0
-  state_dir=$(mktemp -d)
-  "$BIN_DIR/agent-hook-throttle" should-run --key first-run --interval 300 --state-dir "$state_dir" || exit_code=$?
-  rm -rf "$state_dir"
-  if [[ $exit_code -eq 0 ]]; then
-    pass "agent-hook-throttle should-run allows a never-recorded key"
-  else
-    fail "agent-hook-throttle should-run allows a never-recorded key" "exit 0" "exit $exit_code"
-  fi
-}
-
-test_agent_hook_throttle_record_then_throttled() {
-  local state_dir exit_code=0
-  state_dir=$(mktemp -d)
-  "$BIN_DIR/agent-hook-throttle" record --key recent --state-dir "$state_dir"
-  "$BIN_DIR/agent-hook-throttle" should-run --key recent --interval 300 --state-dir "$state_dir" || exit_code=$?
-  rm -rf "$state_dir"
-  if [[ $exit_code -eq 1 ]]; then
-    pass "agent-hook-throttle should-run throttles a recently recorded key"
-  else
-    fail "agent-hook-throttle should-run throttles a recently recorded key" "exit 1" "exit $exit_code"
-  fi
-}
-
-test_agent_hook_throttle_force_bypasses() {
-  local state_dir exit_code=0
-  state_dir=$(mktemp -d)
-  "$BIN_DIR/agent-hook-throttle" record --key recent --state-dir "$state_dir"
-  "$BIN_DIR/agent-hook-throttle" should-run --key recent --interval 300 --state-dir "$state_dir" --force || exit_code=$?
-  rm -rf "$state_dir"
-  if [[ $exit_code -eq 0 ]]; then
-    pass "agent-hook-throttle should-run --force bypasses the throttle"
-  else
-    fail "agent-hook-throttle should-run --force bypasses the throttle" "exit 0" "exit $exit_code"
-  fi
-}
-
-test_agent_hook_throttle_zero_interval_always_runs() {
-  local state_dir exit_code=0
-  state_dir=$(mktemp -d)
-  "$BIN_DIR/agent-hook-throttle" record --key zero --state-dir "$state_dir"
-  "$BIN_DIR/agent-hook-throttle" should-run --key zero --interval 0 --state-dir "$state_dir" || exit_code=$?
-  rm -rf "$state_dir"
-  if [[ $exit_code -eq 0 ]]; then
-    pass "agent-hook-throttle should-run with interval 0 always runs"
-  else
-    fail "agent-hook-throttle should-run with interval 0 always runs" "exit 0" "exit $exit_code"
-  fi
-}
-
-test_agent_hook_throttle_seconds_since() {
-  local state_dir output
-  state_dir=$(mktemp -d)
-  output=$("$BIN_DIR/agent-hook-throttle" seconds-since --key never-recorded --state-dir "$state_dir")
-  rm -rf "$state_dir"
-  if [[ "$output" == "never" ]]; then
-    pass "agent-hook-throttle seconds-since reports 'never' for unrecorded key"
-  else
-    fail "agent-hook-throttle seconds-since reports 'never' for unrecorded key" "never" "$output"
-  fi
-}
-
-test_agent_hook_throttle_missing_args() {
-  local exit_code=0
-  "$BIN_DIR/agent-hook-throttle" should-run --key only-key >/dev/null 2>&1 || exit_code=$?
-  if [[ $exit_code -eq 2 ]]; then
-    pass "agent-hook-throttle should-run requires --state-dir/--interval"
-  else
-    fail "agent-hook-throttle should-run requires --state-dir/--interval" "exit 2" "exit $exit_code"
-  fi
-}
-
-test_agent_hook_throttle_lib_sourced_functions() {
-  # Exercise the sourceable library directly (not just the CLI wrapper),
-  # since hooks written in bash are expected to `source` it rather than
-  # shell out to the CLI.
-  local state_dir result
-  state_dir=$(mktemp -d)
-  (
-    source "$BIN_DIR/lib/agent-hook-throttle.sh"
-    throttle_record "lib-test" "$state_dir"
-    if throttle_should_run "lib-test" 300 "$state_dir"; then
-      echo "should-have-been-throttled"
-    else
-      echo "throttled-as-expected"
-    fi
-  ) >"$state_dir/result.txt"
-  result=$(cat "$state_dir/result.txt")
-  rm -rf "$state_dir"
-  if [[ "$result" == "throttled-as-expected" ]]; then
-    pass "agent-hook-throttle.sh sourced functions work directly"
-  else
-    fail "agent-hook-throttle.sh sourced functions work directly" "throttled-as-expected" "$result"
-  fi
-}
-
 # Run tests
 echo ""
 echo "========================================"
@@ -327,14 +220,6 @@ test_claude_team_help
 test_ct_help
 test_claude_team_invalid_mode
 test_claude_clean_orphaned_dryrun
-test_agent_hook_throttle_help
-test_agent_hook_throttle_first_run
-test_agent_hook_throttle_record_then_throttled
-test_agent_hook_throttle_force_bypasses
-test_agent_hook_throttle_zero_interval_always_runs
-test_agent_hook_throttle_seconds_since
-test_agent_hook_throttle_missing_args
-test_agent_hook_throttle_lib_sourced_functions
 
 echo ""
 echo "========================================"

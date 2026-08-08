@@ -59,8 +59,8 @@ jobs:
 
           # bun cross-compiles every target from this single Linux runner. For each platform,
           # assemble a staging bin/ = the committed bash CLIs (and bin/lib) PLUS that platform's
-          # compiled agent-hook + agent-plugin, then tar it so the archive root contains bin/.
-          # (bin/agent-hook and bin/agent-plugin are no longer committed; they are produced here.)
+          # compiled agent-hook + agent-plugin, then tar the CONTENTS of that bin/ at the archive
+          # root. (bin/agent-hook and bin/agent-plugin are no longer committed; produced here.)
           for platform in linux-amd64 linux-arm64 darwin-amd64 darwin-arm64; do
             case "$platform" in
               linux-amd64) target="bun-linux-x64" ;;
@@ -79,8 +79,12 @@ jobs:
               (cd "$ROOT/packages/$pkg" && bun "$ROOT/scripts/build-cli.mjs" --target="$target" --outdir="$staging/bin")
             done
 
-            # -C "$staging" . puts bin/ at the tarball root so `bin.install Dir['bin/*']` finds it.
-            tar -czf "$ROOT/claude-utils-${platform}.tar.gz" -C "$staging" .
+            # Tar the CONTENTS of bin/ (agent-hook, agent-plugin, the bash CLIs, and lib/) at the
+            # archive root. This yields many top-level entries, so Homebrew does NOT strip a single
+            # leading directory — if we tarred `bin/` itself as the lone top-level dir, Homebrew
+            # would chdir into it and `bin.install` would find nothing ("empty array"). The formula
+            # installs everything at the root via `bin.install Dir['*']`, landing lib/ at #{bin}/lib.
+            tar -czf "$ROOT/claude-utils-${platform}.tar.gz" -C "$staging/bin" .
           done
 
           gh release upload "$TAG" \

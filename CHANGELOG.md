@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.243](https://github.com/nsheaps/claude-utils/compare/v0.12.242...v0.12.243) (2026-08-08)
+
+### Maintenance
+
+* **deps:** update dependency esbuild to ~0.28.1 ([#423](https://github.com/nsheaps/claude-utils/issues/423)) ([c208881](https://github.com/nsheaps/claude-utils/commit/c208881386db2120a3f9931cabb564a9a0a62ec1))
+
 ## [0.12.242](https://github.com/nsheaps/claude-utils/compare/v0.12.241...v0.12.242) (2026-08-08)
 
 ## [0.12.241](https://github.com/nsheaps/claude-utils/compare/v0.12.240...v0.12.241) (2026-08-08)

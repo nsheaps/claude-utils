@@ -33,10 +33,12 @@ class ClaudeUtils < Formula
   depends_on 'gum'
 
   def install
-    # The release tarball's root IS the contents of bin/ (agent-hook, agent-plugin, the bash CLIs,
-    # and lib/) — many top-level entries, so Homebrew does not strip a leading directory. Install
-    # them all into #{bin}; lib/ lands at #{bin}/lib, where the bash CLIs source it via $SCRIPT_DIR.
-    bin.install Dir['*']
+    # The release tarball wraps its payload in a single top-level dist/ directory. Homebrew strips
+    # that lone leading directory and chdir's into it, so by the time this runs the working
+    # directory is dist/. Install only dist/bin/ into #{bin} (lib/ lands at #{bin}/lib, where the
+    # bash CLIs source it via $SCRIPT_DIR). Wrapping in dist/ means future non-bin payloads can be
+    # shipped under dist/ (e.g. dist/share, dist/man) without being swept into #{bin}.
+    bin.install Dir['bin/*']
   end
 
   test do

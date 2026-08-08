@@ -2,6 +2,8 @@
   "Exclude": [
     "docs/research/",
     "docs/reports/",
-    ".claude/tmp/"
+    ".claude/tmp/",
+    "^bin/agent-plugin$",
+    "^bin/agent-hook$"
   ]
 }

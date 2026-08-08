@@ -28,7 +28,7 @@ PREFIX="$(mktemp -d)"
 trap 'rm -rf "$PREFIX"' EXIT
 mkdir -p "$PREFIX/bin"
 
-echo "== simulating: bin.install Dir['bin/*']"
+echo "== simulating the installed layout (bin.install Dir['*'] -> #{bin})"
 cp -R "$REPO"/bin/. "$PREFIX/bin/"
 
 # The binaries must be present (built by `mise run build`) and executable. There is no shebang to

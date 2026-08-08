@@ -33,7 +33,10 @@ class ClaudeUtils < Formula
   depends_on 'gum'
 
   def install
-    bin.install Dir['bin/*']
+    # The release tarball's root IS the contents of bin/ (agent-hook, agent-plugin, the bash CLIs,
+    # and lib/) — many top-level entries, so Homebrew does not strip a leading directory. Install
+    # them all into #{bin}; lib/ lands at #{bin}/lib, where the bash CLIs source it via $SCRIPT_DIR.
+    bin.install Dir['*']
   end
 
   test do

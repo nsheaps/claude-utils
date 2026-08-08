@@ -36,6 +36,7 @@ AVAILABLE UTILITIES:
   claude-diagnostics    Run Claude Code diagnostics
   claude-simple-cli     Minimal Claude CLI for scripting
   claude-team (ct)      Launch Claude with agent teams enabled
+  agent-hook-throttle   Debounce/throttle helper for Claude Code hook scripts
 
 OPTIONS:
   -h, --help      Show this help message

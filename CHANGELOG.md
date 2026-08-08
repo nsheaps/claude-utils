@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.245](https://github.com/nsheaps/claude-utils/compare/v0.12.244...v0.12.245) (2026-08-08)
+
+### Bug Fixes
+
+* **deps:** update dependency yaml to ~2.9.0 ([#426](https://github.com/nsheaps/claude-utils/issues/426)) ([a7830e5](https://github.com/nsheaps/claude-utils/commit/a7830e5373c5c00f0de4ef0f1d85064c615127a8))
+
 ## [0.12.244](https://github.com/nsheaps/claude-utils/compare/v0.12.243...v0.12.244) (2026-08-08)
 
 ## [0.12.243](https://github.com/nsheaps/claude-utils/compare/v0.12.242...v0.12.243) (2026-08-08)

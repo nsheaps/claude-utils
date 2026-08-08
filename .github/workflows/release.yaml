@@ -58,9 +58,10 @@ jobs:
           ROOT="$PWD"
 
           # bun cross-compiles every target from this single Linux runner. For each platform,
-          # assemble a staging bin/ = the committed bash CLIs (and bin/lib) PLUS that platform's
-          # compiled agent-hook + agent-plugin, then tar the CONTENTS of that bin/ at the archive
-          # root. (bin/agent-hook and bin/agent-plugin are no longer committed; produced here.)
+          # assemble a staging dist/bin/ = the committed bash CLIs (and bin/lib) PLUS that platform's
+          # compiled agent-hook + agent-plugin, then tar the `dist/` directory as the archive's lone
+          # top-level entry. (bin/agent-hook and bin/agent-plugin are no longer committed; produced
+          # here.)
           for platform in linux-amd64 linux-arm64 darwin-amd64 darwin-arm64; do
             case "$platform" in
               linux-amd64) target="bun-linux-x64" ;;
@@ -71,20 +72,20 @@ jobs:
 
             staging="$ROOT/staging/$platform"
             rm -rf "$staging"
-            mkdir -p "$staging/bin"
+            mkdir -p "$staging/dist/bin"
             # Copy the bash CLIs + bin/lib (everything left in bin/ after untracking the binaries).
-            cp -R "$ROOT/bin/." "$staging/bin/"
+            cp -R "$ROOT/bin/." "$staging/dist/bin/"
 
             for pkg in agent-hook agent-plugin; do
-              (cd "$ROOT/packages/$pkg" && bun "$ROOT/scripts/build-cli.mjs" --target="$target" --outdir="$staging/bin")
+              (cd "$ROOT/packages/$pkg" && bun "$ROOT/scripts/build-cli.mjs" --target="$target" --outdir="$staging/dist/bin")
             done
 
-            # Tar the CONTENTS of bin/ (agent-hook, agent-plugin, the bash CLIs, and lib/) at the
-            # archive root. This yields many top-level entries, so Homebrew does NOT strip a single
-            # leading directory — if we tarred `bin/` itself as the lone top-level dir, Homebrew
-            # would chdir into it and `bin.install` would find nothing ("empty array"). The formula
-            # installs everything at the root via `bin.install Dir['*']`, landing lib/ at #{bin}/lib.
-            tar -czf "$ROOT/claude-utils-${platform}.tar.gz" -C "$staging/bin" .
+            # Tar `dist/` as the archive's single top-level entry. Homebrew strips one lone leading
+            # directory and chdir's into it, so `def install` runs with cwd = dist/. Only bin/ is
+            # bin-installed (`bin.install Dir['bin/*']`), so future non-bin payloads can live under
+            # dist/ (e.g. dist/share, dist/man) without being force-installed into #{bin}. Packing
+            # `dist/` also means the archive is never a bare pile of files at the root.
+            tar -czf "$ROOT/claude-utils-${platform}.tar.gz" -C "$staging" dist
           done
 
           gh release upload "$TAG" \

@@ -31,7 +31,13 @@ jobs:
   typescript:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout and authenticate as GitHub App
+        id: auth
+        uses: nsheaps/github-actions/.github/actions/checkout-as-app@603052841cd49b9fdc99bc32979ff9c45c9b669e # checkout-as-app@main
+        with:
+          app-id: ${{ secrets.AUTOMATION_GITHUB_APP_ID }}
+          private-key: ${{ secrets.AUTOMATION_GITHUB_APP_PRIVATE_KEY }}
+          ref: ${{ github.head_ref || github.ref }}
 
       - name: Setup mise
         uses: jdx/mise-action@v4
@@ -39,34 +45,70 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
+      # Checks below can't auto-fix their own findings; they run with
+      # continue-on-error so a failure here never skips the bin/ rebuild +
+      # autofix-commit steps that follow -- the final step re-raises failure.
       - name: Type-check
+        id: typecheck
+        continue-on-error: true
         run: mise run typecheck
 
       - name: Lint
+        id: lint
+        continue-on-error: true
         run: mise run lint-ts
 
       - name: Check formatting
+        id: fmtcheck
+        continue-on-error: true
         run: mise run fmt-check-ts
 
       - name: Build
+        id: build
+        continue-on-error: true
         run: mise run build
 
       # bin/agent-plugin and bin/agent-hook are committed build output, because the Homebrew
       # formula installs from a release tarball and never runs a build. That only stays true if the
-      # committed artifact matches the source, so rebuild and require the result to be identical.
-      # Without this, editing src/ and forgetting to rebuild ships a stale binary silently.
+      # committed artifact matches the source, so rebuild here and auto-commit the result if it
+      # drifted, instead of failing the build. Tolerant of the rebuild itself failing (e.g. the
+      # same underlying issue that failed the Build step above) so any earlier partial output is
+      # still evaluated for a diff and, if present, still committed and pushed.
       - name: Committed executables are up to date with src/
+        id: bin-diff
+        continue-on-error: true
         run: |
-          if ! git diff --exit-code -- bin/; then
-            echo "::error::bin/ is out of date with packages/*/src. Run 'mise run build' and commit the result." >&2
-            exit 1
+          mise run build
+          if git diff --exit-code -- bin/; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Commit rebuilt bin/
+        if: steps.bin-diff.outputs.changed == 'true' && !cancelled()
+        uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: "chore: rebuild bin/ via `mise run build`"
+          file_pattern: "bin/**"
+          commit_user_name: ${{ steps.auth.outputs.user-name }}
+          commit_user_email: ${{ steps.auth.outputs.user-email }}
+
       - name: Unit tests
+        id: unittests
+        continue-on-error: true
         run: mise run test-ts
 
       - name: Verify the CLIs work as installed
+        id: verifycli
+        continue-on-error: true
         run: bash scripts/verify-local-install.sh
+
+      - name: Fail if any check failed
+        if: steps.typecheck.outcome == 'failure' || steps.lint.outcome == 'failure' || steps.fmtcheck.outcome == 'failure' || steps.build.outcome == 'failure' || steps.bin-diff.outcome == 'failure' || steps.unittests.outcome == 'failure' || steps.verifycli.outcome == 'failure'
+        run: |
+          echo "One or more checks failed. Any bin/ autofix was already committed and pushed above (if applicable)."
+          exit 1
 
   test:
     runs-on: ubuntu-latest

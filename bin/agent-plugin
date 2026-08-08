@@ -7614,9 +7614,9 @@ Settings (one file per plugin, .claude/settings.<plugin>.yaml|yml|json):
 
 Dependencies:
   ensure-dependency <cli> <mise-package>
-                           Make sure <cli> is runnable, installing <mise-package> via
-                           \`mise use -g\` when this plugin's \`autoInstall\` setting is true.
-                           autoInstall defaults to false. The caller never passes it.
+      Make sure <cli> is runnable, installing <mise-package> via \`mise use -g\` when this
+      plugin's \`autoInstall\` setting is true. autoInstall defaults to false, and the caller
+      never passes it.
 
   example: agent-plugin ensure-dependency gh "gh@latest"
 

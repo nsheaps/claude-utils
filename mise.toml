@@ -2,6 +2,7 @@
 node = "lts"
 yarn = "4.17.0"
 shfmt = "latest"
+editorconfig-checker = "3.8.0"
 
 # This repo holds two kinds of source: the original bash CLIs in bin/, and the TypeScript CLIs
 # under packages/ that are bundled into bin/agent-plugin and bin/agent-hook. Each check therefore
@@ -14,8 +15,8 @@ shfmt = "latest"
 # --- aggregates -------------------------------------------------------------------------------
 
 [tasks.lint]
-description = "Lint everything (shellcheck + oxlint + tsc --noEmit)"
-depends = ["lint-shell", "lint-ts", "typecheck"]
+description = "Lint everything (shellcheck + oxlint + tsc --noEmit + editorconfig)"
+depends = ["lint-shell", "lint-ts", "typecheck", "lint-editorconfig"]
 
 [tasks.fmt]
 description = "Auto-format everything (shfmt + prettier)"
@@ -82,6 +83,19 @@ run = "bash scripts/shell-tools.sh fmt-check"
 [tasks.verify-install]
 description = "Reproduce the Homebrew install of the node CLIs and check they run with node off PATH"
 run = "bash scripts/verify-local-install.sh"
+
+[tasks.lint-editorconfig]
+description = "Check every file against .editorconfig (the same check CI runs)"
+# Two names for one tool: the GitHub action in check.yaml installs it as `editorconfig-checker`,
+# while the mise package above provides only the short `ec`. Prefer the CI name so a local run is
+# the same binary invocation, and fall back to the mise one.
+run = """
+if command -v editorconfig-checker >/dev/null 2>&1; then
+  editorconfig-checker
+else
+  ec
+fi
+"""
 
 [tasks.lint-formula]
 description = "Lint the Homebrew formula with rubocop"

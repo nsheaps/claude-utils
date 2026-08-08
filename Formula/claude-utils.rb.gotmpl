@@ -14,10 +14,9 @@ class ClaudeUtils < Formula
 
   depends_on 'fzf'
   depends_on 'gum'
-  # bin/agent-plugin and bin/agent-hook are single-file node programs; the rest of bin/ is bash.
-  # This also makes Homebrew's cleaner rewrite their `#!/usr/bin/env node` shebang to this node's
-  # absolute path, which matters because they run from hooks whose PATH may not include node.
+  # agent-plugin and agent-hook are single-file node programs. Everything else in bin/ is bash.
   depends_on 'node'
+
 
   def install
     bin.install Dir['bin/*']

@@ -1,6 +1,6 @@
 [tools]
 node = "lts"
-yarn = "4.17.0"
+yarn = "4.17.1"
 shfmt = "latest"
 editorconfig-checker = "3.8.0"
 

@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.12.245](https://github.com/nsheaps/claude-utils/compare/v0.12.244...v0.12.245) (2026-08-08)
+
+### Bug Fixes
+
+* **deps:** update dependency yaml to ~2.9.0 ([#426](https://github.com/nsheaps/claude-utils/issues/426)) ([a7830e5](https://github.com/nsheaps/claude-utils/commit/a7830e5373c5c00f0de4ef0f1d85064c615127a8))
+
+## [0.12.244](https://github.com/nsheaps/claude-utils/compare/v0.12.243...v0.12.244) (2026-08-08)
+
+## [0.12.243](https://github.com/nsheaps/claude-utils/compare/v0.12.242...v0.12.243) (2026-08-08)
+
+### Maintenance
+
+* **deps:** update dependency esbuild to ~0.28.1 ([#423](https://github.com/nsheaps/claude-utils/issues/423)) ([c208881](https://github.com/nsheaps/claude-utils/commit/c208881386db2120a3f9931cabb564a9a0a62ec1))
+
+## [0.12.242](https://github.com/nsheaps/claude-utils/compare/v0.12.241...v0.12.242) (2026-08-08)
+
+## [0.12.241](https://github.com/nsheaps/claude-utils/compare/v0.12.240...v0.12.241) (2026-08-08)
+
+### Maintenance
+
+* **deps:** update all patch updates ([#422](https://github.com/nsheaps/claude-utils/issues/422)) ([685c213](https://github.com/nsheaps/claude-utils/commit/685c2138d4d4bfa5a9201683e6d97aa24f386b56)), closes [#8203](https://github.com/nsheaps/claude-utils/issues/8203)
+
 ## [0.12.240](https://github.com/nsheaps/claude-utils/compare/v0.12.239...v0.12.240) (2026-08-07)
 
 ### Maintenance

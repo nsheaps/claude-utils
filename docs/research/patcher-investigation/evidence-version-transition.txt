@@ -1,0 +1,24 @@
+Version transition from JS bundle to native binary:
+
+2.1.94:  { claude: 'cli.js' }      # JS bundle
+2.1.96:  { claude: 'cli.js' }
+2.1.97:  { claude: 'cli.js' }
+2.1.98:  { claude: 'cli.js' }
+2.1.100: { claude: 'cli.js' }
+2.1.101: { claude: 'cli.js' }
+2.1.104: { claude: 'cli.js' }
+2.1.105: { claude: 'cli.js' }
+2.1.107: { claude: 'cli.js' }
+2.1.108: { claude: 'cli.js' }
+2.1.109: { claude: 'cli.js' }
+2.1.110: { claude: 'cli.js' }
+2.1.111: { claude: 'cli.js' }
+2.1.112: { claude: 'cli.js' }      # LAST JS-based version
+2.1.113: { claude: 'bin/claude.exe' }  # FIRST binary version
+2.1.114: { claude: 'bin/claude.exe' }
+2.1.116: { claude: 'bin/claude.exe' }
+2.1.117: { claude: 'bin/claude.exe' }
+2.1.118: { claude: 'bin/claude.exe' }
+2.1.119: { claude: 'bin/claude.exe' }
+
+Source: npm view @anthropic-ai/claude-code@VERSION bin

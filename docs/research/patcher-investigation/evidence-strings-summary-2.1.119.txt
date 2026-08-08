@@ -1,0 +1,10 @@
+Strings analysis of v2.1.119 ELF binary (claude.exe, 245MB)
+Commands run:
+  strings claude.exe | grep -c isChannelAllowlisted  => 3
+  strings claude.exe | grep -c DevChannelsDialog     => 4
+  strings claude.exe | grep -c 'I am using this for local development' => 3
+
+The target strings DO exist inside the compiled binary, but they are
+embedded in the ELF executable's data sections, not in a plaintext JS file.
+The patcher cannot modify them because it reads the file as UTF-8 text
+and performs JS-level AST/regex manipulation.

@@ -1,0 +1,3 @@
+# Code (and code comments) wrap at 100 rather than the default 80: these are CLI sources whose
+# comments carry protocol detail, and the repo's convention is a higher ceiling for code.
+printWidth: 100

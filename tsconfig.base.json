@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "ESNext",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    // "node" (an alias for the legacy "node10" strategy) is deprecated as of
+    // TypeScript 6.0 and will stop functioning in 7.0 (TS5107). "bundler" is
+    // the modern pairing for `module: ESNext`, and `bun build --compile` does
+    // the actual module resolution when it compiles each CLI into a single
+    // native executable.
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "sourceMap": true
+    // outDir/rootDir are deliberately NOT set here. Relative paths in a tsconfig are resolved
+    // against the file that declares them, so setting them in this shared base would point every
+    // package at the repo root's own src/ and dist/. Each package sets its own.
+  },
+  "exclude": ["node_modules", "dist"]
+}

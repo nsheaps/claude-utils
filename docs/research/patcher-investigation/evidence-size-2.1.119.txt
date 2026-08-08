@@ -1,0 +1,1 @@
+245230208 /home/nsheaps/.local/share/mise/installs/npm-anthropic-ai-claude-code/2.1.119/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe

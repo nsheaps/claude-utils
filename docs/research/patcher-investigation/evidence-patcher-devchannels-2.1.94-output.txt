@@ -1,0 +1,7 @@
+Source: /home/nsheaps/.claude/cli.patched.js
+Found function (1260 chars) at offset 12638084
+Function: $KO, param: q
+Replacement: function $KO(q){q.onAccept()}
+SUCCESS: Patched copy written to /home/nsheaps/.claude/cli.patched.js
+/home/nsheaps/.claude/cli.patched.js
+EXIT CODE: 0

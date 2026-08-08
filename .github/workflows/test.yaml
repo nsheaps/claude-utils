@@ -7,33 +7,74 @@ on:
   pull_request:
 
 jobs:
-  lint:
+  bash:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check bash syntax
         run: |
-          for script in bin/*; do
-            # Skip directories (like bin/lib/)
-            [[ -d "$script" ]] && continue
+          # Only files whose shebang says bash. bin/ also holds the node CLIs (agent-plugin,
+          # agent-hook), and running `bash -n` over a JavaScript bundle reports a syntax error.
+          failed=0
+          while IFS= read -r -d '' script; do
+            head -1 "$script" | grep -q bash || continue
             echo "Checking $script..."
-            bash -n "$script"
-          done
-          # Also check library files
-          for lib in bin/lib/*.sh; do
-            echo "Checking $lib..."
-            bash -n "$lib"
-          done
-          echo "All scripts passed syntax check."
+            bash -n "$script" || failed=1
+          done < <(find bin test scripts -type f -print0)
+          if [ "$failed" -ne 0 ]; then
+            echo "One or more scripts failed the syntax check." >&2
+            exit 1
+          fi
+          echo "All bash scripts passed syntax check."
+
+  typescript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup mise
+        uses: jdx/mise-action@v4
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Type-check
+        run: mise run typecheck
+
+      - name: Lint
+        run: mise run lint-ts
+
+      - name: Check formatting
+        run: mise run fmt-check-ts
+
+      - name: Build
+        run: mise run build
+
+      # bin/agent-plugin and bin/agent-hook are committed build output, because the Homebrew
+      # formula installs from a release tarball and never runs a build. That only stays true if the
+      # committed artifact matches the source, so rebuild and require the result to be identical.
+      # Without this, editing src/ and forgetting to rebuild ships a stale binary silently.
+      - name: Committed executables are up to date with src/
+        run: |
+          if ! git diff --exit-code -- bin/; then
+            echo "::error::bin/ is out of date with packages/*/src. Run 'mise run build' and commit the result." >&2
+            exit 1
+          fi
+
+      - name: Unit tests
+        run: mise run test-ts
+
+      - name: Verify the CLIs work as installed
+        run: bash scripts/verify-local-install.sh
 
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup mise
-        uses: jdx/mise-action@v2
+        uses: jdx/mise-action@v4
 
       - name: Install test dependencies
         run: |
@@ -41,5 +82,5 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y fzf
 
-      - name: Run tests
-        run: mise run test
+      - name: Run bash CLI tests
+        run: mise run test-shell

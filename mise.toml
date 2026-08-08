@@ -1,86 +1,105 @@
 [tools]
 node = "lts"
-yarn = "4"
+bun = "latest"
 shfmt = "latest"
+editorconfig-checker = "3.8.0"
 
-[tasks.test]
-description = "Run CLI tests"
-run = "bash test/cli-test.sh"
+# This repo holds two kinds of source: the original bash CLIs in bin/, and the TypeScript CLIs
+# under packages/ that are compiled into bin/agent-plugin and bin/agent-hook. Each check therefore
+# comes in a `-shell` and a `-ts` flavour, with an aggregate task on top that runs both. CI and
+# muscle memory keep using the aggregate names (`mise run lint`, `mise run test`, ...).
+#
+# The TypeScript side is 100% delegation to bun/nx, which owns caching and parallelism; nothing
+# is inlined here. `bun run <script>` executes the root package.json scripts, which call nx.
+# node stays in [tools] because release-it and the node:test unit tests still run under node; the
+# build itself uses bun to produce self-contained binaries that need no node at runtime.
+# See README.md for the layout.
+
+# --- aggregates -------------------------------------------------------------------------------
 
 [tasks.lint]
-description = "Run ShellCheck on all bash scripts"
+description = "Lint everything (shellcheck + oxlint + tsc --noEmit + editorconfig)"
+depends = ["lint-shell", "lint-ts", "typecheck", "lint-editorconfig"]
+
+[tasks.fmt]
+description = "Auto-format everything (shfmt + prettier)"
+depends = ["fmt-shell", "fmt-ts"]
+
+[tasks.fmt-check]
+description = "Check formatting of everything, without writing"
+depends = ["fmt-check-shell", "fmt-check-ts"]
+
+[tasks.test]
+description = "Run all tests (bash CLI tests + node:test unit tests)"
+depends = ["test-shell", "test-ts"]
+
+[tasks.check]
+description = "Run every check: lint + fmt-check + build + test + the installed-CLI acceptance test"
+depends = ["lint", "fmt-check", "build", "test", "verify-install"]
+
+# --- TypeScript -------------------------------------------------------------------------------
+
+[tasks.build]
+description = "Compile each packages/* CLI into its native standalone executable in bin/"
+run = "bun run build"
+
+[tasks.typecheck]
+description = "Type-check every workspace package (tsc --noEmit)"
+run = "bun run typecheck"
+
+[tasks.lint-ts]
+description = "Lint TypeScript with oxlint"
+run = "bun run lint"
+
+[tasks.test-ts]
+description = "Run node:test unit tests for every workspace package"
+run = "bun run test"
+
+[tasks.fmt-ts]
+description = "Format TypeScript, JSON, markdown and yaml with prettier"
+run = "bun run format"
+
+[tasks.fmt-check-ts]
+description = "Check prettier formatting without writing"
+run = "bun run format:check"
+
+# --- bash -------------------------------------------------------------------------------------
+
+[tasks.test-shell]
+description = "Run the bash CLI tests"
+run = "bash test/cli-test.sh"
+
+[tasks.lint-shell]
+description = "Run ShellCheck on every bash script"
+run = "bash scripts/shell-tools.sh lint"
+
+[tasks.fmt-shell]
+description = "Format every bash script with shfmt"
+run = "bash scripts/shell-tools.sh fmt"
+
+[tasks.fmt-check-shell]
+description = "Check bash formatting with shfmt, without writing"
+run = "bash scripts/shell-tools.sh fmt-check"
+
+# --- other ------------------------------------------------------------------------------------
+
+[tasks.verify-install]
+description = "Reproduce the Homebrew install of the node CLIs and check they run with node off PATH"
+run = "bash scripts/verify-local-install.sh"
+
+[tasks.lint-editorconfig]
+description = "Check every file against .editorconfig (the same check CI runs)"
+# Two names for one tool: the GitHub action in check.yaml installs it as `editorconfig-checker`,
+# while the mise package above provides only the short `ec`. Prefer the CI name so a local run is
+# the same binary invocation, and fall back to the mise one.
 run = """
-bash_files=""
-for f in $(find bin -type f -name '*.sh' -o -type f ! -name '*.*'); do
-  if head -1 "$f" | grep -q 'bash'; then
-    bash_files="$bash_files $f"
-  fi
-done
-for f in $(find bin/lib -type f -name '*.sh' 2>/dev/null); do
-  if head -1 "$f" | grep -q 'bash'; then
-    bash_files="$bash_files $f"
-  fi
-done
-for f in $(find test -type f -name '*.sh' 2>/dev/null); do
-  if head -1 "$f" | grep -q 'bash'; then
-    bash_files="$bash_files $f"
-  fi
-done
-echo "Checking:$bash_files"
-shellcheck $bash_files
+if command -v editorconfig-checker >/dev/null 2>&1; then
+  editorconfig-checker
+else
+  ec
+fi
 """
 
 [tasks.lint-formula]
-description = "Lint Homebrew formula with rubocop"
+description = "Lint the Homebrew formula with rubocop"
 run = "rubocop Formula/*.rb --config .rubocop.yml"
-
-[tasks.fmt]
-description = "Format all bash scripts with shfmt"
-run = """
-bash_files=""
-for f in $(find bin -type f -name '*.sh' -o -type f ! -name '*.*'); do
-  if head -1 "$f" | grep -q 'bash'; then
-    bash_files="$bash_files $f"
-  fi
-done
-for f in $(find bin/lib -type f -name '*.sh' 2>/dev/null); do
-  if head -1 "$f" | grep -q 'bash'; then
-    bash_files="$bash_files $f"
-  fi
-done
-for f in $(find test -type f -name '*.sh' 2>/dev/null); do
-  if head -1 "$f" | grep -q 'bash'; then
-    bash_files="$bash_files $f"
-  fi
-done
-echo "Formatting:$bash_files"
-shfmt -w $bash_files
-"""
-
-[tasks.fmt-check]
-description = "Check formatting of all bash scripts"
-run = """
-bash_files=""
-for f in $(find bin -type f -name '*.sh' -o -type f ! -name '*.*'); do
-  if head -1 "$f" | grep -q 'bash'; then
-    bash_files="$bash_files $f"
-  fi
-done
-for f in $(find bin/lib -type f -name '*.sh' 2>/dev/null); do
-  if head -1 "$f" | grep -q 'bash'; then
-    bash_files="$bash_files $f"
-  fi
-done
-for f in $(find test -type f -name '*.sh' 2>/dev/null); do
-  if head -1 "$f" | grep -q 'bash'; then
-    bash_files="$bash_files $f"
-  fi
-done
-echo "Checking:$bash_files"
-shfmt -d $bash_files
-"""
-
-[tasks.check]
-description = "Run all checks (lint + fmt-check + test)"
-depends = ["lint", "fmt-check", "test"]
-run = "echo 'All checks passed'"

@@ -1,35 +1,69 @@
-#!/usr/bin/env node
-// Bundles one workspace package's TypeScript entry point into a single, self-contained,
-// extensionless executable at the repo root's bin/ directory.
+#!/usr/bin/env bun
+// Compiles one workspace package's TypeScript entry point into a single, self-contained,
+// native standalone executable at the repo root's bin/ directory, using `bun build --compile`.
 //
-// Run it from inside the package being built (that is how the package's own `build` script
-// invokes it, mirroring the build-userscript.mjs pattern in nsheaps/greasemonkey-scripts):
+// Run it with bun from inside the package being built (that is how the package's own `build`
+// script invokes it):
 //
-//   node ../../scripts/build-cli.mjs
+//   bun ../../scripts/build-cli.mjs [--target=<bun-target>] [--outdir=<dir>]
 //
-// The output is committed to the repo on purpose. The Homebrew formula installs from a release
-// tarball and declares only `depends_on "node"` — it never runs yarn, tsc, or esbuild — so the
-// runnable artifact has to already be in the tarball. Keeping it in bin/ also means the existing
-// `bin.install Dir['bin/*']` line in the formula picks it up with no change.
+// `bun build --compile` bundles the entry point, every dependency, and a copy of the Bun runtime
+// into one file that runs with no Node.js, no Bun, and no node_modules alongside it. End users no
+// longer need node at runtime. Because the artifact is self-contained and platform-specific, it is
+// NO LONGER committed to git — it is produced at build time (locally via `mise run build`, and in
+// CI for every release platform) and, for releases, uploaded to the GitHub release. The Homebrew
+// formula installs the per-platform binary FROM the release asset.
 //
-// Two output choices matter and are not arbitrary:
+// CLI arguments (parsed from process.argv):
 //
-//   format: 'cjs' — the output file has NO extension, and Node decides a file's module system
-//     from its extension or the nearest package.json "type". An extensionless file has neither
-//     once Homebrew has installed it to a bin/ directory with no package.json anywhere above it,
-//     and Node's fallback for that is CommonJS. Emitting ESM would depend on Node's syntax
-//     auto-detection, which is version-dependent. CommonJS runs identically everywhere.
+//   --target=<bun-target>   Optional Bun compile target (e.g. bun-linux-x64, bun-darwin-arm64).
+//                           When omitted, bun builds for the host platform. This is how the
+//                           release cross-compiles all four platform binaries from one runner.
+//   --outdir=<dir>          Optional output directory. Defaults to <repoRoot>/bin.
 //
-//   bundle: true — every dependency is inlined, so the installed executable needs no
-//     node_modules next to it. This is what lets the formula get away with a single dependency.
+// For the package in the current working directory it runs, from that cwd:
+//
+//   bun build ./src/index.ts --compile [--target=<bun-target>] --outfile <outdir>/<cliName>
+//
+// Notes:
+//   - `bun build --compile` emits an executable with the correct mode, so there is NO shebang
+//     banner to inject and NO chmod to perform.
+//   - `--outdir` is NOT a bun flag under --compile (bun rejects it); it is only an argument to
+//     this script, which is translated into `--outfile <outdir>/<cliName>`.
 
-import { build } from "esbuild";
-import { chmod, mkdir, readFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { mkdir, readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const packageRoot = process.cwd();
+
+// --- parse args -------------------------------------------------------------------------------
+
+/**
+ * Reads a `--name=value` or `--name value` flag out of the argv list.
+ * Returns undefined when the flag is absent.
+ */
+function readFlag(argv, name) {
+  const prefix = `--${name}=`;
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg.startsWith(prefix)) {
+      return arg.slice(prefix.length);
+    }
+    if (arg === `--${name}`) {
+      return argv[i + 1];
+    }
+  }
+  return undefined;
+}
+
+const argv = process.argv.slice(2);
+const target = readFlag(argv, "target");
+const outdir = readFlag(argv, "outdir") ?? join(repoRoot, "bin");
+
+// --- derive the executable name ---------------------------------------------------------------
 
 const pkg = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8"));
 
@@ -43,32 +77,18 @@ if (!cliName || cliName.includes("/")) {
   );
 }
 
-const outfile = join(repoRoot, "bin", cliName);
-await mkdir(join(repoRoot, "bin"), { recursive: true });
+const outfile = join(outdir, cliName);
+await mkdir(outdir, { recursive: true });
 
-await build({
-  entryPoints: [join(packageRoot, "src", "index.ts")],
-  outfile,
-  bundle: true,
-  platform: "node",
-  format: "cjs",
-  target: "node22",
-  // Keep the bundle readable. These are small CLIs installed on developer machines, not shipped
-  // over a network, so a diffable artifact is worth more than a few saved kilobytes — and this
-  // output is committed, so minifying it would make every dependency bump an unreadable diff.
-  minify: false,
-  banner: {
-    js: [
-      "#!/usr/bin/env node",
-      "// GENERATED FILE — do not edit.",
-      `// Built from packages/${cliName}/src by scripts/build-cli.mjs. Run \`mise run build\`.`,
-    ].join("\n"),
-  },
-  logLevel: "info",
-});
+// --- compile ----------------------------------------------------------------------------------
 
-// Homebrew's `bin.install` preserves the mode bits it finds, and git only tracks the executable
-// bit, so this has to be set here for the committed file to be runnable after checkout.
-await chmod(outfile, 0o755);
+const bunArgs = ["build", "./src/index.ts", "--compile"];
+if (target) {
+  bunArgs.push(`--target=${target}`);
+}
+bunArgs.push("--outfile", outfile);
 
-console.log(`built bin/${cliName}`);
+// stdio inherited so bun's build errors surface directly to the caller (and to nx / mise).
+execFileSync("bun", bunArgs, { cwd: packageRoot, stdio: "inherit" });
+
+console.log(`built ${outfile}${target ? ` (target ${target})` : ""}`);

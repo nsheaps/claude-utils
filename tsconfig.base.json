@@ -6,8 +6,9 @@
     "types": ["node"],
     // "node" (an alias for the legacy "node10" strategy) is deprecated as of
     // TypeScript 6.0 and will stop functioning in 7.0 (TS5107). "bundler" is
-    // the modern pairing for `module: ESNext`, and esbuild does the actual
-    // module resolution when it bundles each CLI into a single file.
+    // the modern pairing for `module: ESNext`, and `bun build --compile` does
+    // the actual module resolution when it compiles each CLI into a single
+    // native executable.
     "moduleResolution": "bundler",
     "strict": true,
     "noImplicitOverride": true,

@@ -5,7 +5,7 @@
   "description": "Emits the JSON a Claude Code hook answers with, and flattens the hook payload into shell variables.",
   "claudeUtilsCli": "agent-hook",
   "scripts": {
-    "build": "node ../../scripts/build-cli.mjs",
+    "build": "bun ../../scripts/build-cli.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint",
     "test": "node --test test/*.test.mjs"

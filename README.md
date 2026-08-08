@@ -170,24 +170,34 @@ The `cc-tmp` command creates workspaces in `/tmp/claude-workspace-<timestamp>`:
 
 - `fzf` - For interactive workspace selection (installed automatically)
 - `gum` - For interactive prompts (installed automatically)
-- `node` - Runs `agent-plugin` and `agent-hook` (installed automatically)
 - `claude` - Claude Code CLI (must be installed separately)
+
+`agent-plugin` and `agent-hook` are self-contained native binaries — they bundle their own runtime,
+so no `node` (or `bun`) install is needed to run them.
 
 ## Development
 
-The repo holds two kinds of source. `bin/` is hand-written bash. `packages/` is TypeScript, bundled
-by esbuild into the extensionless executables `bin/agent-plugin` and `bin/agent-hook`.
+The repo holds two kinds of source. `bin/` is hand-written bash. `packages/` is TypeScript, compiled
+by `bun build --compile` into the native standalone executables `bin/agent-plugin` and
+`bin/agent-hook`. Each is a single self-contained binary with its own copy of the Bun runtime and all
+dependencies baked in — no interpreter is needed to run it.
 
-Those two files are **committed build output**. The Homebrew formula installs from a release tarball
-and never runs a build, so the runnable artifact has to already be in the tarball. Edit
-`packages/*/src`, then run `mise run build` and commit the result — CI fails if `bin/` does not match
-the source.
+Those two binaries are **not committed**. They are gitignored build output: `mise run build` produces
+host binaries at `bin/agent-plugin` and `bin/agent-hook` for local development, and the release
+pipeline cross-compiles all four platform targets on a single Linux runner and uploads them as
+release-asset tarballs. The Homebrew formula installs the per-platform tarball from the release, so
+the runnable artifact is built at release time, not stored in git. Edit `packages/*/src`, then run
+`mise run build` to refresh your local binaries.
+
+Bun is the package manager and build runtime; nx orchestrates the tasks. `node` stays in the dev
+toolchain only because `release-it` and the `node:test` unit tests run under it — it is not needed at
+runtime by the shipped binaries.
 
 Every check comes in a `-shell` and a `-ts` flavour, with an aggregate on top:
 
 ```bash
 # Install dependencies
-yarn install
+bun install
 
 # Everything: lint + format check + build + test + the installed-CLI acceptance test
 mise run check
@@ -195,16 +205,16 @@ mise run check
 # Individually
 mise run lint            # shellcheck + oxlint + tsc --noEmit
 mise run fmt             # shfmt + prettier (writes)
-mise run build           # bundle packages/* into bin/
+mise run build           # compile packages/* into native binaries in bin/
 mise run test            # bash CLI tests + node:test unit tests
 mise run verify-install  # reproduce the Homebrew install and run the CLIs with node off PATH
 mise run lint-formula    # rubocop on the Homebrew formula
 ```
 
-`mise run verify-install` is the acceptance test that matters for the node CLIs: it copies `bin/` to
-a temp prefix, applies the same shebang rewrite the formula does, and then runs the CLIs from a shell
-with node deliberately absent from `PATH`. That last part is the point — the installed executables
-must not depend on finding node on whatever `PATH` a hook was handed.
+`mise run verify-install` is the acceptance test that matters for these CLIs: it copies `bin/` to a
+temp prefix and runs the binaries from a shell with node deliberately absent from `PATH`. That last
+part is the point — the compiled executables are self-contained and must not depend on finding any
+language runtime on whatever `PATH` a hook was handed.
 
 ## License
 

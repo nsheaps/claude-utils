@@ -4,19 +4,33 @@
 class ClaudeUtils < Formula
   desc 'CLI utilities for Claude Code workflow management'
   homepage 'https://github.com/nsheaps/claude-utils'
-  url 'https://github.com/nsheaps/claude-utils/archive/refs/tags/{{ .Env.Tag }}.tar.gz'
-  sha256 '{{ .Env.SHA256 }}'
   license 'MIT'
 
-  head do
-    url 'https://github.com/nsheaps/claude-utils.git', branch: 'main'
+  # agent-plugin and agent-hook are native, self-contained binaries produced by
+  # `bun build --compile` and shipped per-platform in the release tarballs. Everything
+  # else in bin/ is platform-independent bash. No node/bun is needed at runtime.
+  on_macos do
+    if Hardware::CPU.arm?
+      url 'https://github.com/nsheaps/claude-utils/releases/download/{{ .Env.Tag }}/claude-utils-darwin-arm64.tar.gz'
+      sha256 '{{ .Env.SHA256_DARWIN_ARM64 }}'
+    else
+      url 'https://github.com/nsheaps/claude-utils/releases/download/{{ .Env.Tag }}/claude-utils-darwin-amd64.tar.gz'
+      sha256 '{{ .Env.SHA256_DARWIN_AMD64 }}'
+    end
+  end
+
+  on_linux do
+    if Hardware::CPU.arm?
+      url 'https://github.com/nsheaps/claude-utils/releases/download/{{ .Env.Tag }}/claude-utils-linux-arm64.tar.gz'
+      sha256 '{{ .Env.SHA256_LINUX_ARM64 }}'
+    else
+      url 'https://github.com/nsheaps/claude-utils/releases/download/{{ .Env.Tag }}/claude-utils-linux-amd64.tar.gz'
+      sha256 '{{ .Env.SHA256_LINUX_AMD64 }}'
+    end
   end
 
   depends_on 'fzf'
   depends_on 'gum'
-  # agent-plugin and agent-hook are single-file node programs. Everything else in bin/ is bash.
-  depends_on 'node'
-
 
   def install
     bin.install Dir['bin/*']

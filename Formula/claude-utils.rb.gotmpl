@@ -24,5 +24,7 @@ class ClaudeUtils < Formula
 
   test do
     assert_match 'ccresume', shell_output("#{bin}/ccresume --help 2>&1", 1)
+    assert_match 'Usage: agent-plugin', shell_output("#{bin}/agent-plugin --help")
+    assert_match 'Usage: agent-hook', shell_output("#{bin}/agent-hook --help")
   end
 end

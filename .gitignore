@@ -12,6 +12,11 @@ node_modules/
 dist/
 *.tar.gz
 
+# Compiled CLI binaries (built with `bun build --compile`, not committed —
+# produced by `mise run build` locally/CI and shipped via release assets)
+bin/agent-hook
+bin/agent-plugin
+
 # IDE
 .idea/
 .vscode/

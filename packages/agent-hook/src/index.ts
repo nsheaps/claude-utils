@@ -1,7 +1,8 @@
 /**
  * `agent-hook` entry point.
  *
- * Bundled by scripts/build-cli.mjs into the committed, extensionless executable bin/agent-hook.
+ * Compiled by scripts/build-cli.mjs (via `bun build --compile`) into the standalone native
+ * executable bin/agent-hook, produced at build time and not committed to git.
  * All the behaviour lives in cli.ts so it can be tested without spawning a process.
  */
 

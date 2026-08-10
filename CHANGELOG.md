@@ -2,6 +2,12 @@
 
 ## [0.12.254](https://github.com/nsheaps/claude-utils/compare/v0.12.253...v0.12.254) (2026-08-10)
 
+### Maintenance
+
+* release v0.12.254 [skip ci] ([412e08b](https://github.com/nsheaps/claude-utils/commit/412e08ba70a0e848ed1934d4920ad0e1375e49f8))
+
+## [0.12.254](https://github.com/nsheaps/claude-utils/compare/v0.12.253...v0.12.254) (2026-08-10)
+
 ## [0.12.253](https://github.com/nsheaps/claude-utils/compare/v0.12.252...v0.12.253) (2026-08-10)
 
 ## [0.12.252](https://github.com/nsheaps/claude-utils/compare/v0.12.251...v0.12.252) (2026-08-10)

@@ -16,16 +16,13 @@ jobs:
       version: ${{ steps.release.outputs.version }}
       tag: ${{ steps.release.outputs.tag }}
     steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Authenticate as GitHub App
+      - name: Checkout and authenticate as GitHub App
         id: auth
-        uses: ./.github/actions/github-app-auth
+        uses: nsheaps/github-actions/.github/actions/checkout-as-app@603052841cd49b9fdc99bc32979ff9c45c9b669e # checkout-as-app@main
         with:
           app-id: ${{ secrets.AUTOMATION_GITHUB_APP_ID }}
           private-key: ${{ secrets.AUTOMATION_GITHUB_APP_PRIVATE_KEY }}
+          fetch-depth: "0"
 
       - name: Fetch tags
         run: git fetch --tags --force
@@ -58,9 +55,11 @@ jobs:
           ROOT="$PWD"
 
           # bun cross-compiles every target from this single Linux runner. For each platform,
-          # assemble a staging bin/ = the committed bash CLIs (and bin/lib) PLUS that platform's
-          # compiled agent-hook + agent-plugin, then tar it so the archive root contains bin/.
-          # (bin/agent-hook and bin/agent-plugin are no longer committed; they are produced here.)
+          # assemble a staging dist/bin/ = the committed bash CLIs (and bin/lib) PLUS that
+          # platform's compiled agent-hook + agent-plugin, then tar the dist/ wrapper. dist/ is
+          # the archive's lone top-level entry, so Homebrew strips it and chdir's into dist/;
+          # only dist/bin/ is then bin-installed, leaving room for future non-bin payloads under
+          # dist/. (bin/agent-hook and bin/agent-plugin are no longer committed; produced here.)
           for platform in linux-amd64 linux-arm64 darwin-amd64 darwin-arm64; do
             case "$platform" in
               linux-amd64) target="bun-linux-x64" ;;
@@ -71,16 +70,21 @@ jobs:
 
             staging="$ROOT/staging/$platform"
             rm -rf "$staging"
-            mkdir -p "$staging/bin"
+            mkdir -p "$staging/dist/bin"
             # Copy the bash CLIs + bin/lib (everything left in bin/ after untracking the binaries).
-            cp -R "$ROOT/bin/." "$staging/bin/"
+            cp -R "$ROOT/bin/." "$staging/dist/bin/"
 
             for pkg in agent-hook agent-plugin; do
-              (cd "$ROOT/packages/$pkg" && bun "$ROOT/scripts/build-cli.mjs" --target="$target" --outdir="$staging/bin")
+              (cd "$ROOT/packages/$pkg" && bun "$ROOT/scripts/build-cli.mjs" --target="$target" --outdir="$staging/dist/bin")
             done
 
-            # -C "$staging" . puts bin/ at the tarball root so `bin.install Dir['bin/*']` finds it.
-            tar -czf "$ROOT/claude-utils-${platform}.tar.gz" -C "$staging" .
+            # Tar the dist/ wrapper. dist/ is the archive's single top-level entry, so Homebrew
+            # strips it and chdir's into dist/ before `def install` runs. The formula then does
+            # `bin.install Dir['bin/*']`, installing only dist/bin/ into #{bin} (lib/ lands at
+            # #{bin}/lib, where the bash CLIs source it via $SCRIPT_DIR). Wrapping in dist/ leaves
+            # room to ship non-bin payloads later (e.g. dist/share, dist/man) without sweeping
+            # them into #{bin}.
+            tar -czf "$ROOT/claude-utils-${platform}.tar.gz" -C "$staging" dist
           done
 
           gh release upload "$TAG" \

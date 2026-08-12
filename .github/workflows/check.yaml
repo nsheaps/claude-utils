@@ -77,9 +77,9 @@ jobs:
       # Check-only steps below can't auto-fix their own findings. They run
       # without continue-on-error so each step's own status accurately
       # reflects pass/fail (no green checkmarks on a failed linter). Each
-      # step after the first uses `!cancelled()` so one linter failing
-      # doesn't skip the rest -- all linters still run, in order, and the
-      # job fails overall if any of them failed, same as a normal
+      # step uses `!cancelled()` so one linter failing doesn't skip the
+      # rest -- all linters still run, in order, and the job fails
+      # overall if any of them failed, same as a normal
       # (non-continue-on-error) step failure would.
       - name: ShellCheck
         id: shellcheck

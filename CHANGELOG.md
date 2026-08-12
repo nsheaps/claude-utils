@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.259](https://github.com/nsheaps/claude-utils/compare/v0.12.258...v0.12.259) (2026-08-12)
+
+### Maintenance
+
+* **deps:** update nsheaps + squink github actions ([f6c5813](https://github.com/nsheaps/claude-utils/commit/f6c581313eaea02e2c4a793645dd2ce1154adc10))
+
 ## [0.12.258](https://github.com/nsheaps/claude-utils/compare/v0.12.257...v0.12.258) (2026-08-12)
 
 ### Bug Fixes

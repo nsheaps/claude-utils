@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.258](https://github.com/nsheaps/claude-utils/compare/v0.12.257...v0.12.258) (2026-08-12)
+
+### Bug Fixes
+
+* make github-app config explicit; make check.yaml linter statuses accurate ([#439](https://github.com/nsheaps/claude-utils/issues/439)) ([bfb1eb7](https://github.com/nsheaps/claude-utils/commit/bfb1eb75f31e8e726672134603b195bf48cd25db))
+
 ## [0.12.257](https://github.com/nsheaps/claude-utils/compare/v0.12.256...v0.12.257) (2026-08-11)
 
 ## [0.12.256](https://github.com/nsheaps/claude-utils/compare/v0.12.255...v0.12.256) (2026-08-11)

@@ -46,8 +46,10 @@ jobs:
           echo "Found bash files:$bash_files"
 
       # Autofix runs first and is tolerant of failure so a fix it DID manage
-      # to make still gets committed and pushed; the failure itself is
-      # surfaced by the final step below instead of aborting the job here.
+      # to make still gets committed and pushed. shfmt's own step status
+      # still reports the failure (continue-on-error only stops it from
+      # blocking downstream `success()` checks); the re-raise step below
+      # turns that into an overall job failure after the commit step runs.
       - name: shfmt -w (autofix)
         id: shfmt
         if: steps.find-bash.outputs.files != ''
@@ -66,13 +68,22 @@ jobs:
           commit_user_name: ${{ steps.auth.outputs.user-name }}
           commit_user_email: ${{ steps.auth.outputs.user-email }}
 
-      # Check-only steps below can't auto-fix their own findings; they run
-      # with continue-on-error so a failure here never skips the autofix
-      # step above -- the final step re-raises failure.
+      - name: Fail if shfmt found unfixable issues
+        if: steps.shfmt.outcome == 'failure' && !cancelled()
+        run: |
+          echo "shfmt reported a failure (see 'shfmt -w (autofix)' step above for details)." >&2
+          exit 1
+
+      # Check-only steps below can't auto-fix their own findings. They run
+      # without continue-on-error so each step's own status accurately
+      # reflects pass/fail (no green checkmarks on a failed linter). Each
+      # step uses `!cancelled()` so one linter failing doesn't skip the
+      # rest -- all linters still run, in order, and the job fails
+      # overall if any of them failed, same as a normal
+      # (non-continue-on-error) step failure would.
       - name: ShellCheck
         id: shellcheck
-        if: steps.find-bash.outputs.files != ''
-        continue-on-error: true
+        if: steps.find-bash.outputs.files != '' && !cancelled()
         run: |
           bash_files="${{ steps.find-bash.outputs.files }}"
           echo "Running ShellCheck on:$bash_files"
@@ -80,16 +91,10 @@ jobs:
 
       - name: EditorConfig check
         id: editorconfig
-        continue-on-error: true
+        if: '!cancelled()'
         uses: editorconfig-checker/action-editorconfig-checker@main
 
       - name: Run editorconfig-checker
         id: editorconfig-run
-        continue-on-error: true
+        if: '!cancelled()'
         run: editorconfig-checker
-
-      - name: Fail if any check failed
-        if: steps.shfmt.outcome == 'failure' || steps.shellcheck.outcome == 'failure' || steps.editorconfig.outcome == 'failure' || steps.editorconfig-run.outcome == 'failure'
-        run: |
-          echo "One or more checks failed. Any autofixes were already committed and pushed above."
-          exit 1

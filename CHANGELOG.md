@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.260](https://github.com/nsheaps/claude-utils/compare/v0.12.259...v0.12.260) (2026-08-13)
+
+### Maintenance
+
+* **deps:** update dependency nx to ~23.1.0 ([#440](https://github.com/nsheaps/claude-utils/issues/440)) ([53b42da](https://github.com/nsheaps/claude-utils/commit/53b42da86cfe55ac33ad342b14c5bbb6912a31a7))
+
 ## [0.12.259](https://github.com/nsheaps/claude-utils/compare/v0.12.258...v0.12.259) (2026-08-12)
 
 ### Maintenance

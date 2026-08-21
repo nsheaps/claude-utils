@@ -23,7 +23,7 @@
     "@release-it/conventional-changelog": "^11.0.1",
     "@types/node": "~26.1.0",
     "nx": "~23.1.0",
-    "oxlint": "~1.74.0",
+    "oxlint": "~1.75.0",
     "prettier": "~3.9.4",
     "release-it": "^20.2.1",
     "typescript": "~7.0.2"

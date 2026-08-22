@@ -376,3 +376,144 @@ describe("agent-plugin: ensure-dependency", () => {
     assert.match(stderr, /AGENT_PLUGIN_NAME/);
   });
 });
+
+describe("agent-plugin: throttle", () => {
+  /** A throwaway state directory, standing in for $CLAUDE_PLUGIN_DATA. */
+  function stateDir() {
+    const dir = mkdtempSync(join(tmpdir(), "agent-plugin-throttle-"));
+    tmpDirs.push(dir);
+    return dir;
+  }
+
+  it("prints help mentioning throttle", () => {
+    const { stdout } = run(["--help"]);
+    assert.match(stdout, /throttle should-run/);
+    assert.match(stdout, /CLAUDE_PLUGIN_DATA/);
+  });
+
+  it("rejects an unknown throttle subcommand", () => {
+    const { code, stderr } = run(["throttle", "frobnicate", "--key", "k"], {
+      env: { CLAUDE_PLUGIN_DATA: stateDir() },
+    });
+    assert.equal(code, 2);
+    assert.match(stderr, /throttle takes exactly one subcommand/);
+  });
+
+  it("requires --key", () => {
+    const { code, stderr } = run(["throttle", "should-run", "--interval", "300"], {
+      env: { CLAUDE_PLUGIN_DATA: stateDir() },
+    });
+    assert.equal(code, 2);
+    assert.match(stderr, /requires --key/);
+  });
+
+  it("requires a state directory, from --state-dir or CLAUDE_PLUGIN_DATA", () => {
+    const { code, stderr } = run(["throttle", "should-run", "--key", "k", "--interval", "300"]);
+    assert.notEqual(code, 0);
+    assert.match(stderr, /--state-dir/);
+    assert.match(stderr, /CLAUDE_PLUGIN_DATA/);
+  });
+
+  it("requires --interval unless --force is given", () => {
+    const dir = stateDir();
+    const { code, stderr } = run(["throttle", "should-run", "--key", "k"], {
+      env: { CLAUDE_PLUGIN_DATA: dir },
+    });
+    assert.equal(code, 2);
+    assert.match(stderr, /requires --interval/);
+  });
+
+  it("allows a never-recorded key to run", () => {
+    const dir = stateDir();
+    const { code } = run(["throttle", "should-run", "--key", "first-run", "--interval", "300"], {
+      env: { CLAUDE_PLUGIN_DATA: dir },
+    });
+    assert.equal(code, 0);
+  });
+
+  it("throttles a key recorded within the interval", () => {
+    const dir = stateDir();
+    const env = { CLAUDE_PLUGIN_DATA: dir };
+    assert.equal(run(["throttle", "record", "--key", "recent"], { env }).code, 0);
+    const { code } = run(["throttle", "should-run", "--key", "recent", "--interval", "300"], {
+      env,
+    });
+    assert.equal(code, 1);
+  });
+
+  it("allows a key again once the interval has elapsed", () => {
+    const dir = stateDir();
+    // Pre-write a state file with a lastRun far enough in the past that any positive interval has
+    // elapsed, rather than sleeping in the test.
+    writeFileSync(join(dir, "throttle.old-key.json"), JSON.stringify({ lastRun: 0 }));
+    const { code } = run(["throttle", "should-run", "--key", "old-key", "--interval", "60"], {
+      env: { CLAUDE_PLUGIN_DATA: dir },
+    });
+    assert.equal(code, 0);
+  });
+
+  it("--force always allows a run, even right after record", () => {
+    const dir = stateDir();
+    const env = { CLAUDE_PLUGIN_DATA: dir };
+    run(["throttle", "record", "--key", "recent"], { env });
+    const { code } = run(
+      ["throttle", "should-run", "--key", "recent", "--interval", "300", "--force"],
+      { env },
+    );
+    assert.equal(code, 0);
+  });
+
+  it("interval 0 always allows a run", () => {
+    const dir = stateDir();
+    const env = { CLAUDE_PLUGIN_DATA: dir };
+    run(["throttle", "record", "--key", "zero"], { env });
+    const { code } = run(["throttle", "should-run", "--key", "zero", "--interval", "0"], { env });
+    assert.equal(code, 0);
+  });
+
+  it("reports seconds-since as never for an unrecorded key", () => {
+    const dir = stateDir();
+    const { code, stdout } = run(["throttle", "seconds-since", "--key", "never-recorded"], {
+      env: { CLAUDE_PLUGIN_DATA: dir },
+    });
+    assert.equal(code, 0);
+    assert.equal(stdout, "never\n");
+  });
+
+  it("reports seconds-since as a small non-negative number right after recording", () => {
+    const dir = stateDir();
+    const env = { CLAUDE_PLUGIN_DATA: dir };
+    run(["throttle", "record", "--key", "just-now"], { env });
+    const { stdout } = run(["throttle", "seconds-since", "--key", "just-now"], { env });
+    const seconds = Number(stdout.trim());
+    assert.ok(Number.isInteger(seconds));
+    assert.ok(seconds >= 0 && seconds < 5, `expected a small elapsed time, got ${seconds}`);
+  });
+
+  it("--state-dir overrides CLAUDE_PLUGIN_DATA", () => {
+    const flagDir = stateDir();
+    const envDir = stateDir();
+    run(["throttle", "record", "--key", "k", "--state-dir", flagDir], {
+      env: { CLAUDE_PLUGIN_DATA: envDir },
+    });
+    assert.ok(readFileSync(join(flagDir, "throttle.k.json"), "utf8").length > 0);
+    assert.throws(() => readFileSync(join(envDir, "throttle.k.json"), "utf8"));
+  });
+
+  it("keeps each key in its own file, sanitizing unsafe characters", () => {
+    const dir = stateDir();
+    const env = { CLAUDE_PLUGIN_DATA: dir };
+    run(["throttle", "record", "--key", "github-app/token-check", "--state-dir", dir], { env });
+    assert.ok(readFileSync(join(dir, "throttle.github-app_token-check.json"), "utf8").length > 0);
+  });
+
+  it("does not need a plugin name", () => {
+    const dir = stateDir();
+    // No --plugin, no AGENT_PLUGIN_NAME anywhere -- throttle state is scoped by --state-dir /
+    // CLAUDE_PLUGIN_DATA (already one directory per installed plugin), not by plugin name.
+    const { code } = run(["throttle", "should-run", "--key", "k", "--interval", "60"], {
+      env: { CLAUDE_PLUGIN_DATA: dir },
+    });
+    assert.equal(code, 0);
+  });
+});

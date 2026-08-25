@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.280](https://github.com/nsheaps/claude-utils/compare/v0.12.279...v0.12.280) (2026-08-25)
+
+### Maintenance
+
+* **deps:** update dependency @release-it/conventional-changelog to v12 ([#457](https://github.com/nsheaps/claude-utils/issues/457)) ([7a2358c](https://github.com/nsheaps/claude-utils/commit/7a2358c8eadf6c0ac8b60ba414b9f7db93b21f56)), references [#8203](https://github.com/nsheaps/claude-utils/issues/8203)
+
 ## [0.12.279](https://github.com/nsheaps/claude-utils/compare/v0.12.278...v0.12.279) (2026-08-24)
 
 ### Maintenance

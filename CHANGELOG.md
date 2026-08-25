@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.281](https://github.com/nsheaps/claude-utils/compare/v0.12.280...v0.12.281) (2026-08-25)
+
+### Maintenance
+
+* **deps:** update dependency release-it to v21 ([#458](https://github.com/nsheaps/claude-utils/issues/458)) ([2efac9b](https://github.com/nsheaps/claude-utils/commit/2efac9b739204b9a6c62de35e94587bde7659a7b))
+
 ## [0.12.280](https://github.com/nsheaps/claude-utils/compare/v0.12.279...v0.12.280) (2026-08-25)
 
 ### Maintenance

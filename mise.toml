@@ -2,7 +2,7 @@
 node = "lts"
 bun = "latest"
 shfmt = "latest"
-editorconfig-checker = "3.10.0"
+editorconfig-checker = "3.11.1"
 
 # This repo holds two kinds of source: the original bash CLIs in bin/, and the TypeScript CLIs
 # under packages/ that are compiled into bin/agent-plugin and bin/agent-hook. Each check therefore

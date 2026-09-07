@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.295](https://github.com/nsheaps/claude-utils/compare/v0.12.294...v0.12.295) (2026-09-07)
+
+### Maintenance
+
+* **deps:** update dependency editorconfig-checker to v3.10.0 ([#470](https://github.com/nsheaps/claude-utils/issues/470)) ([465c6e5](https://github.com/nsheaps/claude-utils/commit/465c6e51b62762360bb1461e03fb258091cef0ab))
+
 ## [0.12.294](https://github.com/nsheaps/claude-utils/compare/v0.12.293...v0.12.294) (2026-09-07)
 
 ### Maintenance

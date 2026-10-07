@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.329](https://github.com/nsheaps/claude-utils/compare/v0.12.328...v0.12.329) (2026-10-07)
+
+### Maintenance
+
+* **deps:** update dependency @types/node to ~26.5.0 ([#508](https://github.com/nsheaps/claude-utils/issues/508)) ([e50a524](https://github.com/nsheaps/claude-utils/commit/e50a524aafa1f68e89bbca34c23e2c7e84d0d09a))
+* **deps:** update nsheaps/agents digest to 3162250 ([#507](https://github.com/nsheaps/claude-utils/issues/507)) ([bb197b4](https://github.com/nsheaps/claude-utils/commit/bb197b4e6605ee44b8b5dc63e3c6538772d97ed3))
+
 ## [0.12.328](https://github.com/nsheaps/claude-utils/compare/v0.12.327...v0.12.328) (2026-10-07)
 
 ### Maintenance

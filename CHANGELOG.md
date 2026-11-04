@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.364](https://github.com/nsheaps/claude-utils/compare/v0.12.363...v0.12.364) (2026-11-04)
+
+### Maintenance
+
+* **deps:** update dependency oxlint to ~1.87.0 ([#541](https://github.com/nsheaps/claude-utils/issues/541)) ([809ee37](https://github.com/nsheaps/claude-utils/commit/809ee374957505e2794741bfdfcc69bdc54314fc))
+
 ## [0.12.363](https://github.com/nsheaps/claude-utils/compare/v0.12.362...v0.12.363) (2026-11-03)
 
 ### Maintenance

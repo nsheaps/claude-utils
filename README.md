@@ -94,11 +94,23 @@ agent-plugin settings get-all --all        # every plugin (the only form that ne
 
 # Dependencies. Reads this plugin's own autoInstall setting to decide whether to install.
 agent-plugin ensure-dependency gh "gh@latest"
+
+# Throttling. A PreToolUse hook fires before every tool call, so a hook doing non-trivial work
+# (checking a token's expiry, re-parsing .envrc, ...) needs to avoid redoing it on every call.
+# --key/--interval are always the caller's choice; there is no global throttle policy.
+if agent-plugin throttle should-run --key envrc-check --interval 300; then
+  do_expensive_check
+  agent-plugin throttle record --key envrc-check
+fi
 ```
 
 The log threshold is `$AGENT_PLUGIN_LOG_LEVEL`, else the plugin's own `logLevel` setting, else
 `info`. Settings live under `$CLAUDE_PROJECT_DIR` when it is set, and the current directory
-otherwise.
+otherwise. Throttle state lives under `$CLAUDE_PLUGIN_DATA` (Claude Code's per-plugin persistent
+data directory) instead, since it is written on every hook call and has no business being
+committed alongside a plugin's hand-edited settings file — `--state-dir` overrides it. `--force`
+on `should-run` bypasses the throttle for cases where the caller already knows the state behind
+the check is stale (e.g. a token that's already expired) and the check must never be skipped.
 
 #### `agent-hook`
 

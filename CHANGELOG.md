@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.380](https://github.com/nsheaps/claude-utils/compare/v0.12.379...v0.12.380) (2026-11-16)
+
+### Maintenance
+
+* **deps:** update all patch updates to v2.1.302 ([#555](https://github.com/nsheaps/claude-utils/issues/555)) ([adfd460](https://github.com/nsheaps/claude-utils/commit/adfd460055b9f26603f0807e79516fa1b1a20667)), references [#8203](https://github.com/nsheaps/claude-utils/issues/8203)
+
 ## [0.12.379](https://github.com/nsheaps/claude-utils/compare/v0.12.378...v0.12.379) (2026-11-14)
 
 ### Maintenance

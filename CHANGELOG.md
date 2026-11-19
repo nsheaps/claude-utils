@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.12.383](https://github.com/nsheaps/claude-utils/compare/v0.12.382...v0.12.383) (2026-11-19)
+
+### Maintenance
+
+* **deps:** update nsheaps/agents digest to 1e63627 ([#558](https://github.com/nsheaps/claude-utils/issues/558)) ([a419a21](https://github.com/nsheaps/claude-utils/commit/a419a212fd898f39ce0d1e7364cd592f89fbc00d))
+
 ## [0.12.382](https://github.com/nsheaps/claude-utils/compare/v0.12.381...v0.12.382) (2026-11-19)
 
 ### Maintenance

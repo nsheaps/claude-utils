@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.385](https://github.com/nsheaps/claude-utils/compare/v0.12.384...v0.12.385) (2026-11-21)
+
+### Maintenance
+
+* **deps:** update all patch updates to v2.1.307 ([#561](https://github.com/nsheaps/claude-utils/issues/561)) ([ab5f3a3](https://github.com/nsheaps/claude-utils/commit/ab5f3a340e1238f5f2fe36ce90f37b61461c1793)), references [#8203](https://github.com/nsheaps/claude-utils/issues/8203)
+* **deps:** update dependency nx to v24 ([#560](https://github.com/nsheaps/claude-utils/issues/560)) ([46b74e9](https://github.com/nsheaps/claude-utils/commit/46b74e98fa4c990102be7f2aa236ece91cfcd6fb)), references [#8203](https://github.com/nsheaps/claude-utils/issues/8203) [#8203](https://github.com/nsheaps/claude-utils/issues/8203) [#8203](https://github.com/nsheaps/claude-utils/issues/8203) [#8203](https://github.com/nsheaps/claude-utils/issues/8203) [#8203](https://github.com/nsheaps/claude-utils/issues/8203)
+
 ## [0.12.384](https://github.com/nsheaps/claude-utils/compare/v0.12.383...v0.12.384) (2026-11-20)
 
 ### Maintenance

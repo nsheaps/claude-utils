@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.393](https://github.com/nsheaps/claude-utils/compare/v0.12.392...v0.12.393) (2026-11-27)
+
+### Maintenance
+
+* **deps:** update all patch updates to v2.1.312 ([#569](https://github.com/nsheaps/claude-utils/issues/569)) ([ad49695](https://github.com/nsheaps/claude-utils/commit/ad49695462cc26a6273b433fe0ee7369d911e79e)), references [#8203](https://github.com/nsheaps/claude-utils/issues/8203)
+* **deps:** update node.js to v26 ([#568](https://github.com/nsheaps/claude-utils/issues/568)) ([b50dc93](https://github.com/nsheaps/claude-utils/commit/b50dc93fa60e8cbb8708c57d196fcf4129145fd9)), references [#8203](https://github.com/nsheaps/claude-utils/issues/8203) [#8203](https://github.com/nsheaps/claude-utils/issues/8203) [#8203](https://github.com/nsheaps/claude-utils/issues/8203) [#8203](https://github.com/nsheaps/claude-utils/issues/8203) [#8203](https://github.com/nsheaps/claude-utils/issues/8203) [#8203](https://github.com/nsheaps/claude-utils/issues/8203)
+
 ## [0.12.392](https://github.com/nsheaps/claude-utils/compare/v0.12.391...v0.12.392) (2026-11-26)
 
 ### Maintenance

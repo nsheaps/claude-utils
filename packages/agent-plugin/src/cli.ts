@@ -20,6 +20,7 @@ import { createLogger, isLevel, LEVELS, resolveThreshold } from "./log.js";
 import type { Level } from "./log.js";
 import { commandExists, ensureDependency, readAutoInstall, runCommand } from "./dependencies.js";
 import { resolvePluginName } from "./plugin-name.js";
+import { record, resolveStateDir, secondsSince, shouldRun } from "./throttle.js";
 
 export const HELP = `Usage: agent-plugin [--plugin <name>] <command> [args]
 
@@ -54,10 +55,32 @@ Dependencies:
 
   example: agent-plugin ensure-dependency gh "gh@latest"
 
+Throttling (one timestamp file per --key, so a hook can skip re-running an expensive check on
+every tool call):
+  throttle should-run --key <key> --interval <seconds> [--force]
+      Exit 0 if a throttled check for <key> should run now, exit 1 if it ran within the last
+      <seconds>. --force always exits 0 -- use it when the caller already knows the state behind
+      the check is stale (e.g. a token already known to be expired) and it must never be skipped.
+
+  throttle record --key <key>
+      Record that <key>'s check ran now.
+
+  throttle seconds-since --key <key>
+      Print seconds since <key> was last recorded, or \`never\`.
+
+  State is stored under --state-dir, or $CLAUDE_PLUGIN_DATA when that is not given -- never
+  guessed, same as the plugin name above.
+
+  example: agent-plugin throttle should-run --key envrc-check --interval 300
+
 Options:
-  --plugin <name>          the plugin to act on
-  --all                    with \`settings get-all\` only: every plugin
-  -h, --help               show this help
+  --plugin <name>           the plugin to act on
+  --all                     with \`settings get-all\` only: every plugin
+  --key <key>               with \`throttle\`: the check being throttled
+  --interval <seconds>      with \`throttle should-run\`: minimum seconds between runs
+  --force                   with \`throttle should-run\`: bypass the throttle unconditionally
+  --state-dir <dir>         with \`throttle\`: override $CLAUDE_PLUGIN_DATA
+  -h, --help                show this help
 `;
 
 export interface Io {
@@ -74,11 +97,15 @@ interface ParsedArgs {
   plugin?: string;
   all: boolean;
   help: boolean;
+  key?: string;
+  interval?: number;
+  force: boolean;
+  stateDir?: string;
   positional: string[];
 }
 
 export function parseArgs(argv: string[]): ParsedArgs {
-  const out: ParsedArgs = { all: false, help: false, positional: [] };
+  const out: ParsedArgs = { all: false, help: false, force: false, positional: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     if (a === "--plugin") {
@@ -89,6 +116,26 @@ export function parseArgs(argv: string[]): ParsedArgs {
       out.plugin = a.slice("--plugin=".length);
     } else if (a === "--all") {
       out.all = true;
+    } else if (a === "--key") {
+      const value = argv[++i];
+      if (value === undefined) throw new Error("--key requires a value");
+      out.key = value;
+    } else if (a.startsWith("--key=")) {
+      out.key = a.slice("--key=".length);
+    } else if (a === "--interval") {
+      const value = argv[++i];
+      if (value === undefined) throw new Error("--interval requires a value");
+      out.interval = parseIntervalSeconds(value);
+    } else if (a.startsWith("--interval=")) {
+      out.interval = parseIntervalSeconds(a.slice("--interval=".length));
+    } else if (a === "--force") {
+      out.force = true;
+    } else if (a === "--state-dir") {
+      const value = argv[++i];
+      if (value === undefined) throw new Error("--state-dir requires a value");
+      out.stateDir = value;
+    } else if (a.startsWith("--state-dir=")) {
+      out.stateDir = a.slice("--state-dir=".length);
     } else if (a === "-h" || a === "--help") {
       out.help = true;
     } else if (a === "--") {
@@ -101,6 +148,16 @@ export function parseArgs(argv: string[]): ParsedArgs {
     }
   }
   return out;
+}
+
+function parseIntervalSeconds(value: string): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) {
+    throw new Error(
+      `--interval must be a non-negative number of seconds, got ${JSON.stringify(value)}`,
+    );
+  }
+  return n;
 }
 
 /** The subcommand names that log a message, mapped to the level they log at. */
@@ -134,6 +191,7 @@ export function main(argv: string[], io: Io): number {
     if (command in LOG_COMMANDS) return doLog(command, rest, args, io);
     if (command === "settings") return doSettings(rest, args, io);
     if (command === "ensure-dependency") return doEnsureDependency(rest, args, io);
+    if (command === "throttle") return doThrottle(rest, args, io);
     io.stderr.write(`ERROR: Unknown command ${JSON.stringify(command)}. Try --help.\n`);
     return 2;
   } catch (e) {
@@ -296,6 +354,49 @@ function doEnsureDependency(rest: string[], args: ParsedArgs, io: Io): number {
   // A dependency that is still missing is a failure the caller has to be able to branch on, so it
   // gets a non-zero exit even though the message has already been logged.
   return outcome.status === "present" || outcome.status === "installed" ? 0 : 1;
+}
+
+const THROTTLE_SUBCOMMANDS = ["should-run", "record", "seconds-since"] as const;
+type ThrottleSubcommand = (typeof THROTTLE_SUBCOMMANDS)[number];
+
+function isThrottleSubcommand(value: string): value is ThrottleSubcommand {
+  return (THROTTLE_SUBCOMMANDS as readonly string[]).includes(value);
+}
+
+function doThrottle(rest: string[], args: ParsedArgs, io: Io): number {
+  if (rest.length !== 1 || !isThrottleSubcommand(rest[0]!)) {
+    io.stderr.write(
+      `ERROR: throttle takes exactly one subcommand: ${THROTTLE_SUBCOMMANDS.join(", ")}. Try --help.\n`,
+    );
+    return 2;
+  }
+  const sub = rest[0] as ThrottleSubcommand;
+
+  if (!args.key) {
+    io.stderr.write(`ERROR: throttle ${sub} requires --key <key>.\n`);
+    return 2;
+  }
+
+  const stateDir = resolveStateDir(args.stateDir, io.env);
+
+  if (sub === "should-run") {
+    if (!args.force && args.interval === undefined) {
+      io.stderr.write(`ERROR: throttle should-run requires --interval <seconds> (or --force).\n`);
+      return 2;
+    }
+    const ok = shouldRun(stateDir, args.key, args.interval ?? 0, { force: args.force });
+    return ok ? 0 : 1;
+  }
+
+  if (sub === "record") {
+    record(stateDir, args.key);
+    return 0;
+  }
+
+  // seconds-since
+  const seconds = secondsSince(stateDir, args.key);
+  io.stdout.write(seconds === undefined ? "never\n" : `${Math.floor(seconds)}\n`);
+  return 0;
 }
 
 export { isLevel };
